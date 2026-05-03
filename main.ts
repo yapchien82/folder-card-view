@@ -1,6 +1,33 @@
-import { Plugin, ItemView, WorkspaceLeaf, TFolder, TFile, setIcon, Menu, MarkdownView, Notice } from 'obsidian';
+import { App, Plugin, ItemView, WorkspaceLeaf, TFolder, TFile, setIcon, Menu, MarkdownView, Notice, FuzzySuggestModal } from 'obsidian';
 
 const VIEW_TYPE_CARD = "folder-card-view";
+
+class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
+    onChoose: (folder: TFolder) => void;
+
+    constructor(app: App, onChoose: (folder: TFolder) => void) {
+        super(app);
+        this.onChoose = onChoose;
+    }
+
+    getItems(): TFolder[] {
+        const folders: TFolder[] = [];
+        this.app.vault.getAllLoadedFiles().forEach((f) => {
+            if (f instanceof TFolder) {
+                folders.push(f);
+            }
+        });
+        return folders;
+    }
+
+    getItemText(item: TFolder): string {
+        return item.path === "/" ? "仓库根目录" : item.path;
+    }
+
+    onChooseItem(item: TFolder, _evt: MouseEvent | KeyboardEvent): void {
+        this.onChoose(item);
+    }
+}
 
 class FolderCardView extends ItemView {
     currentFolder: TFolder | null = null;
@@ -275,13 +302,80 @@ class FolderCardView extends ItemView {
 
                 const leaf = this.app.workspace.getLeaf(false);
                 await leaf.openFile(file);
-                
+
                 if (leaf.view instanceof MarkdownView) {
                     const editor = leaf.view.editor;
                     const firstLineLength = editor.getLine(0).length;
                     editor.setCursor({ line: 0, ch: firstLineLength });
                     editor.focus();
                 }
+            };
+
+            card.oncontextmenu = (event: MouseEvent) => {
+                event.preventDefault();
+                const menu = new Menu();
+
+                menu.addItem((item) => item
+                    .setTitle("在新标签页中打开")
+                    .setIcon("file-plus")
+                    .onClick(() => this.app.workspace.getLeaf('tab').openFile(file))
+                );
+
+                menu.addSeparator();
+
+                menu.addItem((item) => item
+                    .setTitle("移至其他目录")
+                    .setIcon("folder-input")
+                    .onClick(() => {
+                        new FolderSuggestModal(this.app, async (folder) => {
+                            await this.app.fileManager.renameFile(file, `${folder.path}/${file.name}`);
+                        }).open();
+                    })
+                );
+
+                menu.addItem((item) => item
+                    .setTitle("复制文件")
+                    .setIcon("copy")
+                    .onClick(async () => {
+                        const newPath = file.path.replace(/(\.[^.]+)$/, ' (副本)$1');
+                        await this.app.vault.copy(file, newPath);
+                    })
+                );
+
+                menu.addSeparator();
+
+                menu.addItem((item) => item
+                    .setTitle("复制路径")
+                    .setIcon("link")
+                    .onClick(() => {
+                    const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+                    navigator.clipboard.writeText(fullPath);
+                })
+                );
+
+                menu.addItem((item) => item
+                    .setTitle("在系统中显示")
+                    .setIcon("folder")
+                    .onClick(() => {
+                        try {
+                            const electron = (window as any).require?.('electron');
+                            const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+                            electron?.shell?.showItemInFolder(fullPath);
+                        } catch {
+                            new Notice("仅桌面端支持此功能");
+                        }
+                    })
+                );
+
+                menu.addSeparator();
+
+                menu.addItem((item) => item
+                    .setTitle("删除")
+                    .setIcon("trash")
+                    .onClick(() => this.app.fileManager.trashFile(file))
+                );
+
+                menu.showAtMouseEvent(event);
             };
         }
     }
@@ -292,6 +386,17 @@ export default class FolderCardPlugin extends Plugin {
         this.registerView(VIEW_TYPE_CARD, (leaf) => new FolderCardView(leaf));
 
         this.addRibbonIcon('layout-list', '打开文件卡片', () => this.activateView());
+
+        const refreshCurrentFolder = () => {
+            const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
+            if (leaf && (leaf.view as FolderCardView).currentFolder) {
+                (leaf.view as FolderCardView).renderCards();
+            }
+        };
+
+        this.registerEvent(this.app.vault.on('create', refreshCurrentFolder));
+        this.registerEvent(this.app.vault.on('delete', refreshCurrentFolder));
+        this.registerEvent(this.app.vault.on('rename', refreshCurrentFolder));
 
         this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
             const target = evt.target as HTMLElement;

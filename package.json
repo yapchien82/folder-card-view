@@ -1,6 +1,6 @@
 {
 	"name": "folder-card-view",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "在单独的卡片视图中显示文件夹内容，并在左侧文件树中隐藏文件。",
 	"main": "main.js",
 	"author": "Kelvin",
