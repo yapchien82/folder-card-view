@@ -2,6 +2,11 @@ import { App, Plugin, ItemView, WorkspaceLeaf, TFolder, TFile, setIcon, Menu, Ma
 
 const VIEW_TYPE_CARD = "folder-card-view";
 
+// 文件列表缓存：文件夹路径 → 该文件夹下的文件列表
+const folderFileCache = new Map<string, TFile[]>();
+// 预览读取上限：超过此数量的卡片不读取文件内容，仅显示骨架
+const PREVIEW_LIMIT = 20;
+
 class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
     onChoose: (folder: TFolder) => void;
 
@@ -34,7 +39,8 @@ class FolderCardView extends ItemView {
     sortOrder: 'name' | 'time' = 'time'; 
     sortDirection: 'desc' | 'asc' = 'desc'; 
     searchQuery: string = ''; 
-    isSearchOpen: boolean = false; 
+    isSearchOpen: boolean = false;
+    searchDebounceTimer: number | null = null;
 
     headerContainer: HTMLElement;
     contentContainer: HTMLElement;
@@ -200,9 +206,15 @@ class FolderCardView extends ItemView {
             }
         };
 
+        // 方案 C：搜索防抖 250ms，避免每次按键都触发完整渲染
         searchInput.addEventListener("input", (e) => {
             this.searchQuery = (e.target as HTMLInputElement).value;
-            this.renderCards(); 
+            if (this.searchDebounceTimer) {
+                clearTimeout(this.searchDebounceTimer);
+            }
+            this.searchDebounceTimer = window.setTimeout(() => {
+                this.renderCards();
+            }, 250);
         });
     }
 
@@ -222,14 +234,24 @@ class FolderCardView extends ItemView {
         this.contentContainer.empty();
         if (!this.currentFolder) return;
 
-        const allVaultFiles = this.app.vault.getFiles();
-        let files = [];
-        
-        if (this.currentFolder.path === "/") {
-            files = allVaultFiles;
+        // 使用缓存获取文件夹下的文件列表（方案 D：文件列表缓存）
+        const cacheKey = this.currentFolder.path;
+        let files: TFile[];
+
+        if (this.searchQuery.trim() === '' && folderFileCache.has(cacheKey)) {
+            files = [...folderFileCache.get(cacheKey)!];
         } else {
-            const folderPathWithSlash = this.currentFolder.path + '/';
-            files = allVaultFiles.filter(f => f.path.startsWith(folderPathWithSlash) || f.parent === this.currentFolder);
+            const allVaultFiles = this.app.vault.getFiles();
+            if (this.currentFolder.path === "/") {
+                files = [...allVaultFiles];
+            } else {
+                const folderPathWithSlash = this.currentFolder.path + '/';
+                files = allVaultFiles.filter(f => f.path.startsWith(folderPathWithSlash) || f.parent === this.currentFolder);
+            }
+            // 仅在无搜索时缓存原始列表
+            if (this.searchQuery.trim() === '') {
+                folderFileCache.set(cacheKey, [...files]);
+            }
         }
 
         if (this.searchQuery.trim() !== '') {
@@ -259,6 +281,13 @@ class FolderCardView extends ItemView {
         const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
         const activeFile = this.app.workspace.getActiveFile();
 
+        // 方案 A：并行读取前 PREVIEW_LIMIT 张卡片的文件内容
+        const filesToPreview = files.slice(0, PREVIEW_LIMIT);
+        const previewContents = await Promise.all(
+            filesToPreview.map(f => this.app.vault.cachedRead(f).catch(() => ''))
+        );
+        const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
+
         for (const file of files) {
             const card = cardList.createEl("div", { cls: "file-card" });
             card.setAttribute("data-path", file.path);
@@ -277,22 +306,34 @@ class FolderCardView extends ItemView {
 
             card.createEl("div", { cls: "file-card-title", text: file.basename });
 
-            const content = await this.app.vault.cachedRead(file);
-            let previewText = content.split('\n').slice(0, 5).join(' ').trim();
-            
-            const tagRegex = /#[\w\u4e00-\u9fa5]+/g;
-            const tags = previewText.match(tagRegex);
-            if (tags && tags.length > 0) {
-                const tagsContainer = card.createEl("div", { cls: "file-card-tags" });
-                tags.forEach(tag => {
-                    tagsContainer.createEl("span", { cls: "file-card-tag", text: tag });
-                });
-                previewText = previewText.replace(tagRegex, '').trim();
-            }
+            // \u65b9\u6848 A\uff1a\u4f7f\u7528\u9884\u8bfb\u53d6\u7684\u5185\u5bb9\uff08\u524d PREVIEW_LIMIT \u5f20\uff09\uff0c\u5176\u4f59\u5361\u7247\u4ece\u5143\u6570\u636e\u7f13\u5b58\u83b7\u53d6\u6807\u7b7e
+            const cachedContent = previewMap.get(file.path);
+            if (cachedContent !== undefined) {
+                let previewText = cachedContent.split('\n').slice(0, 5).join(' ').trim();
 
-            if (previewText) {
-                 const cleanText = previewText.replace(/[#*]/g, '').trim();
-                 card.createEl("div", { cls: "file-card-preview", text: cleanText || "..." });
+                const tagRegex = /#[\w\u4e00-\u9fa5]+/g;
+                const tags = previewText.match(tagRegex);
+                if (tags && tags.length > 0) {
+                    const tagsContainer = card.createEl("div", { cls: "file-card-tags" });
+                    tags.forEach(tag => {
+                        tagsContainer.createEl("span", { cls: "file-card-tag", text: tag });
+                    });
+                    previewText = previewText.replace(tagRegex, '').trim();
+                }
+
+                if (previewText) {
+                     const cleanText = previewText.replace(/[#*]/g, '').trim();
+                     card.createEl("div", { cls: "file-card-preview", text: cleanText || "..." });
+                }
+            } else {
+                // \u8d85\u51fa\u9884\u89c8\u9650\u5236\u7684\u5361\u7247\uff1a\u4ece\u5143\u6570\u636e\u7f13\u5b58\u8bfb\u53d6\u6807\u7b7e\uff08\u65e0\u9700\u8bfb\u53d6\u6587\u4ef6\u5185\u5bb9\uff09
+                const fileCache = this.app.metadataCache.getFileCache(file);
+                if (fileCache?.tags?.length) {
+                    const tagsContainer = card.createEl("div", { cls: "file-card-tags" });
+                    fileCache.tags.forEach(tagCache => {
+                        tagsContainer.createEl("span", { cls: "file-card-tag", text: tagCache.tag });
+                    });
+                }
             }
 
             card.onclick = async () => {
@@ -394,9 +435,19 @@ export default class FolderCardPlugin extends Plugin {
             }
         };
 
-        this.registerEvent(this.app.vault.on('create', refreshCurrentFolder));
-        this.registerEvent(this.app.vault.on('delete', refreshCurrentFolder));
-        this.registerEvent(this.app.vault.on('rename', refreshCurrentFolder));
+        // 文件变更时清除缓存并刷新视图
+        this.registerEvent(this.app.vault.on('create', () => {
+            folderFileCache.clear();
+            refreshCurrentFolder();
+        }));
+        this.registerEvent(this.app.vault.on('delete', () => {
+            folderFileCache.clear();
+            refreshCurrentFolder();
+        }));
+        this.registerEvent(this.app.vault.on('rename', () => {
+            folderFileCache.clear();
+            refreshCurrentFolder();
+        }));
 
         this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
             const target = evt.target as HTMLElement;
