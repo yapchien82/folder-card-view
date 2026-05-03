@@ -1,0 +1,274 @@
+/* ===================================================
+   第 1 部分：父级总宽锁定 + 动态面板内容锁定
+   =================================================== */
+
+/* 隐藏原生左侧边栏中的文件 */
+.workspace-leaf-content[data-type="file-explorer"] .nav-file {
+    display: none !important;
+}
+
+/* 1：只要左侧栏开启了卡片视图，整个大外框死锁 520px */
+.workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) {
+    width: 520px !important;
+    min-width: 520px !important;
+    max-width: 520px !important;
+    flex: none !important;
+}
+
+/* 2：精确抓取：不管顺序怎么变，只要里面装的是“卡片视图”，就死锁 310px */
+.workspace-split.mod-left-split .workspace-tabs:has(.workspace-leaf-content[data-type="folder-card-view"]) {
+    flex: 0 0 310px !important;
+    width: 310px !important;
+    min-width: 310px !important;
+    max-width: 310px !important;
+}
+
+/* 3：智能匹配：在 520px 框内，除了卡片视图以外的所有其他面板（无论是文件夹、搜索还是大纲），一律死锁 210px。
+   同时加入 min-width 保证它永远不会缩成 0，彻底根除启动黑屏问题！ */
+.workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-tabs:not(:has(.workspace-leaf-content[data-type="folder-card-view"])) {
+    flex: 1 1 210px !important;
+    width: 210px !important;
+    min-width: 210px !important; 
+    max-width: 210px !important;
+}
+
+/* 4：保留分割线视觉，但彻底屏蔽鼠标拖拽事件 */
+.workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-leaf-resize-handle {
+    pointer-events: none !important;
+    cursor: default !important;
+}
+
+/* ===================================================
+   第 2 部分：卡片视图内部样式
+   =================================================== */
+
+/* 容器内部填充 */
+.folder-card-view-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%; /* 因为外层已经锁死 310px，这里直接占满即可 */
+    background-color: var(--background-primary);
+}
+
+/* 顶部工具栏 */
+.folder-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 6px 6px; /* 左右微微留 6px 边距，不贴边 */
+    border-bottom: 1px solid var(--background-modifier-border);
+    min-height: 32px;
+}
+
+.card-icon-btn {
+    padding: 5px;
+    cursor: pointer;
+    border-radius: var(--radius-s);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.card-icon-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.card-icon-btn.is-active {
+    color: var(--text-accent);
+}
+
+/* 搜索输入框 */
+.folder-card-search-container {
+    display: none; 
+    margin-left: auto; 
+    width: 150px; 
+}
+
+.folder-card-search-container.is-active {
+    display: block; 
+}
+
+.folder-card-search-input {
+    width: 100%;
+    background: var(--background-modifier-form-field);
+    border: 1px solid var(--background-modifier-border);
+    color: var(--text-normal);
+    padding: 4px 8px;
+    font-size: 13px;
+    border-radius: var(--radius-s);
+}
+
+/* 下方内容区与列表间距 */
+.folder-card-content-area {
+    flex: 1;
+    overflow-y: auto;
+    /* 重点：上 6px，左右 4px 防贴脸，底部 24px 防贴底栏 */
+    padding: 6px 4px 24px 4px; 
+}
+
+.folder-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px; /* 卡片之间的上下间距 */
+}
+
+/* 卡片本身样式 (无边框与悬浮质感) */
+.file-card {
+    background-color: var(--background-secondary);
+    border: 1px solid transparent; 
+    border-radius: 6px;
+    padding: 8px 8px; /* 卡片内部文字离卡片边缘的距离 */
+    height: auto; 
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    overflow: hidden; 
+    transition: all 0.2s ease; 
+}
+
+/* 悬浮时的浮起效果 */
+.file-card:hover {
+    background-color: var(--background-secondary-alt);
+    border-color: var(--background-modifier-border-hover);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); 
+    transform: translateY(-1px); 
+}
+
+/* 排版层级优化 */
+.file-card-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-normal); 
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 智能标签容器 */
+.file-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+/* 单个标签胶囊 */
+.file-card-tag {
+    font-size: 11px;
+    color: var(--text-accent);
+    background-color: var(--background-modifier-accent);
+    padding: 2px 6px;
+    border-radius: 10px;
+    opacity: 0.8;
+}
+
+.file-card-preview {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-muted); 
+    display: -webkit-box;
+    -webkit-line-clamp: 2; 
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
+}
+
+/* ===================================================
+   给当前选中的文件夹加粗并加衬底
+   =================================================== */
+.nav-folder-title.is-plugin-active-folder {
+    background-color: var(--background-modifier-active-hover) !important;
+    font-weight: bold !important;
+    color: var(--text-normal) !important;
+    border-radius: var(--radius-s);
+}
+
+/* 防止加粗后字体挤压导致的轻微位移 */
+.nav-folder-title.is-plugin-active-folder .nav-folder-title-content {
+    font-weight: bold !important;
+}
+
+/* ===================================================
+   给当前选中的文件卡片加衬底和高亮边框
+   =================================================== */
+.file-card.is-active {
+    background-color: var(--background-modifier-active-hover);
+    border-color: var(--interactive-accent);
+    /* 增加一个内发光效果，让选中的卡片更有下凹的质感 */
+    box-shadow: inset 0 0 0 1px var(--interactive-accent); 
+}
+
+/* 选中时，让卡片里的标题也稍微提亮一点 */
+.file-card.is-active .file-card-title {
+    color: var(--interactive-accent);
+}
+
+/* ===================================================
+   第 3 部分：新增子目录路径面包屑样式
+   =================================================== */
+
+/* 当文件位于子目录时，显示所在路径的小字 */
+.file-card-path {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-bottom: 2px;
+    font-family: var(--font-interface);
+    display: flex;
+    align-items: center;
+}
+
+/* 路径旁边加个小斜杠作装饰 */
+.file-card-path::after {
+    content: "/";
+    margin-left: 4px;
+    color: var(--background-modifier-border);
+}
+
+/* ===================================================
+   第 4 部分：移动端 (Mobile) 专属兼容性修复
+   =================================================== */
+
+/* Obsidian 会在手机端的 <body> 标签上自动添加 .is-mobile 类 */
+.is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]),
+.is-mobile .workspace-split.mod-left-split .workspace-tabs:has(.workspace-leaf-content[data-type="folder-card-view"]),
+.is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-tabs:not(:has(.workspace-leaf-content[data-type="folder-card-view"])) {
+    /* 解除所有 520px, 310px, 210px 的死锁 */
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+    display: block !important;
+}
+
+/* 手机屏幕太窄，不适合左右并排，我们让原生文件夹在激活卡片时自动隐藏，为卡片腾出全屏空间 */
+.is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-tabs:has(.workspace-leaf-content[data-type="file-explorer"]) {
+    display: none !important;
+}
+
+/* 稍微放大手机端卡片的标题和内边距，方便手指触摸 */
+.is-mobile .file-card {
+    padding: 12px 10px;
+    min-height: 90px;
+}
+
+.is-mobile .file-card-title {
+    font-size: 15px; 
+    margin-bottom: 6px;
+}
+
+.is-mobile .folder-card-header {
+    padding: 10px 8px; /* 顶部按钮区变大，防止误触 */
+}
+
+.is-mobile .card-icon-btn {
+    padding: 8px;
+}
