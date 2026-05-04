@@ -1,7 +1,7 @@
 {
 	"id": "folder-card-view",
 	"name": "Folder Card View",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "1.0.0",
 	"description": "在单独的卡片视图中显示文件夹内容，并在左侧文件树中隐藏文件。",
 	"author": "Kelvin",

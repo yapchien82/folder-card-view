@@ -237,11 +237,11 @@
    第 4 部分：移动端 (Mobile) 专属兼容性修复
    =================================================== */
 
-/* Obsidian 会在手机端的 <body> 标签上自动添加 .is-mobile 类 */
+/* 移动端解除桌面端固定宽度锁 —— 卡片视图在移动端作为独立标签页打开，
+   不受 .mod-left-split 约束，但以防万一仍然重置所有可能的容器 */
 .is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]),
 .is-mobile .workspace-split.mod-left-split .workspace-tabs:has(.workspace-leaf-content[data-type="folder-card-view"]),
 .is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-tabs:not(:has(.workspace-leaf-content[data-type="folder-card-view"])) {
-    /* 解除所有 520px, 310px, 210px 的死锁 */
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
@@ -249,26 +249,34 @@
     display: block !important;
 }
 
-/* 手机屏幕太窄，不适合左右并排，我们让原生文件夹在激活卡片时自动隐藏，为卡片腾出全屏空间 */
-.is-mobile .workspace-split.mod-left-split:has(.workspace-leaf-content[data-type="folder-card-view"]) .workspace-tabs:has(.workspace-leaf-content[data-type="file-explorer"]) {
-    display: none !important;
+/* 移动端：卡片视图作为独立标签页时占满全屏 */
+.is-mobile .workspace-leaf-content[data-type="folder-card-view"] {
+    width: 100% !important;
 }
 
-/* 稍微放大手机端卡片的标题和内边距，方便手指触摸 */
+/* 移动端放大卡片内边距和字体，方便手指触摸 */
 .is-mobile .file-card {
-    padding: 12px 10px;
+    padding: 14px 12px;
     min-height: 90px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.is-mobile .file-card:active {
+    background-color: var(--background-modifier-active-hover);
+    transform: scale(0.98);
 }
 
 .is-mobile .file-card-title {
-    font-size: 15px; 
+    font-size: 15px;
     margin-bottom: 6px;
 }
 
 .is-mobile .folder-card-header {
-    padding: 10px 8px; /* 顶部按钮区变大，防止误触 */
+    padding: 10px 8px;
 }
 
 .is-mobile .card-icon-btn {
-    padding: 8px;
+    padding: 10px;
+    min-width: 40px;
+    min-height: 40px;
 }

@@ -1,4 +1,4 @@
-import { App, Plugin, ItemView, WorkspaceLeaf, TFolder, TFile, setIcon, Menu, MarkdownView, Notice, FuzzySuggestModal } from 'obsidian';
+import { App, Plugin, ItemView, WorkspaceLeaf, TFolder, TFile, setIcon, Menu, MarkdownView, Notice, FuzzySuggestModal, Platform } from 'obsidian';
 
 const VIEW_TYPE_CARD = "folder-card-view";
 
@@ -478,11 +478,15 @@ export default class FolderCardPlugin extends Plugin {
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
         
         if (!leaf) {
-            const fileExplorerLeaf = workspace.getLeavesOfType('file-explorer')[0];
-            if (fileExplorerLeaf) {
-                leaf = workspace.createLeafBySplit(fileExplorerLeaf, 'vertical');
+            if (Platform.isMobile) {
+                leaf = workspace.getLeaf('tab');
             } else {
-                leaf = workspace.getLeaf('split', 'vertical');
+                const fileExplorerLeaf = workspace.getLeavesOfType('file-explorer')[0];
+                if (fileExplorerLeaf) {
+                    leaf = workspace.createLeafBySplit(fileExplorerLeaf, 'vertical');
+                } else {
+                    leaf = workspace.getLeaf('split', 'vertical');
+                }
             }
             await leaf.setViewState({ type: VIEW_TYPE_CARD, active: true });
         }
@@ -547,6 +551,11 @@ export default class FolderCardPlugin extends Plugin {
 
     updateCardView(folder: TFolder) {
         const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
-        if (leaf) (leaf.view as FolderCardView).renderFolder(folder);
+        if (leaf) {
+            if (Platform.isMobile) {
+                this.app.workspace.revealLeaf(leaf);
+            }
+            (leaf.view as FolderCardView).renderFolder(folder);
+        }
     }
 }
