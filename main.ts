@@ -231,8 +231,11 @@ class FolderCardView extends ItemView {
     }
 
     async renderCards() {
-        this.contentContainer.empty();
         if (!this.currentFolder) return;
+
+        // 立即显示加载状态，避免空白闪烁
+        this.contentContainer.empty();
+        this.contentContainer.createEl("div", { cls: "folder-card-loading" }).createEl("span", { text: "加载中..." });
 
         // 使用缓存获取文件夹下的文件列表（方案 D：文件列表缓存）
         const cacheKey = this.currentFolder.path;
@@ -278,15 +281,17 @@ class FolderCardView extends ItemView {
             }
         });
 
-        const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
-        const activeFile = this.app.workspace.getActiveFile();
-
-        // 方案 A：并行读取前 PREVIEW_LIMIT 张卡片的文件内容
+        // 方案 A：先异步读取前 PREVIEW_LIMIT 张卡片的文件内容，再一次性渲染
         const filesToPreview = files.slice(0, PREVIEW_LIMIT);
         const previewContents = await Promise.all(
             filesToPreview.map(f => this.app.vault.cachedRead(f).catch(() => ''))
         );
         const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
+
+        // 数据就绪后才清空加载态并渲染卡片，消除空白间隙
+        this.contentContainer.empty();
+        const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
+        const activeFile = this.app.workspace.getActiveFile();
 
         for (const file of files) {
             const card = cardList.createEl("div", { cls: "file-card" });

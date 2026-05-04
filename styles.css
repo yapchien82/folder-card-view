@@ -119,6 +119,16 @@
     gap: 6px; /* 卡片之间的上下间距 */
 }
 
+/* 加载中占位符 */
+.folder-card-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 0;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
 /* 卡片本身样式 (无边框与悬浮质感) */
 .file-card {
     background-color: var(--background-secondary);
