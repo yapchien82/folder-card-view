@@ -423,6 +423,8 @@ class FolderCardView extends ItemView {
 }
 
 export default class FolderCardPlugin extends Plugin {
+    private lastFolderClickTime = 0;
+
     async onload() {
         this.registerView(VIEW_TYPE_CARD, (leaf) => new FolderCardView(leaf));
 
@@ -449,34 +451,45 @@ export default class FolderCardPlugin extends Plugin {
             refreshCurrentFolder();
         }));
 
-        this.registerDomEvent(document, 'click', async (evt: MouseEvent) => {
-            const target = evt.target as HTMLElement;
+        const handleFolderClick = async (target: HTMLElement) => {
             const folderTitleEl = target.closest('.nav-folder-title');
-            if (folderTitleEl) {
-                const path = folderTitleEl.getAttribute('data-path');
-                if (path) {
-                    const abstractFile = this.app.vault.getAbstractFileByPath(path);
-                    if (abstractFile instanceof TFolder) {
-                        await this.activateView(false); 
-                        this.updateCardView(abstractFile);
+            if (!folderTitleEl) return;
 
-                        document.querySelectorAll('.is-plugin-active-folder').forEach(el => {
-                            el.classList.remove('is-plugin-active-folder');
-                        });
-                        folderTitleEl.classList.add('is-plugin-active-folder');
-                    }
-                }
-            }
+            const path = folderTitleEl.getAttribute('data-path');
+            if (!path) return;
+
+            const abstractFile = this.app.vault.getAbstractFileByPath(path);
+            if (!(abstractFile instanceof TFolder)) return;
+
+            // 防抖：移动端 click 和 touchend 会先后触发，过滤掉 500ms 内的重复调用
+            const now = Date.now();
+            if (now - this.lastFolderClickTime < 500) return;
+            this.lastFolderClickTime = now;
+
+            await this.activateView(false);
+            this.updateCardView(abstractFile);
+
+            document.querySelectorAll('.is-plugin-active-folder').forEach(el => {
+                el.classList.remove('is-plugin-active-folder');
+            });
+            folderTitleEl.classList.add('is-plugin-active-folder');
+        };
+
+        // 桌面端：click 事件足够
+        this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
+            handleFolderClick(evt.target as HTMLElement);
+        });
+
+        // 移动端：touchend 确保在 Obsidian 拦截 touch 事件后仍能触发
+        this.registerDomEvent(document, 'touchend', (evt: TouchEvent) => {
+            handleFolderClick(evt.target as HTMLElement);
         });
     }
 
-    // ==========================================
-    // 【核心优化点 2】冷启动时的全局跃迁修复
-    // ==========================================
     async activateView(autoFocusRecent: boolean = true) {
         const { workspace } = this.app;
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
-        
+
         if (!leaf) {
             if (Platform.isMobile) {
                 leaf = workspace.getLeaf('tab');
@@ -490,7 +503,13 @@ export default class FolderCardPlugin extends Plugin {
             }
             await leaf.setViewState({ type: VIEW_TYPE_CARD, active: true });
         }
-        workspace.revealLeaf(leaf);
+
+        // 移动端用 setActiveLeaf 来强制切换标签页，比 revealLeaf 更可靠
+        if (Platform.isMobile) {
+            workspace.setActiveLeaf(leaf, { focus: true });
+        } else {
+            workspace.revealLeaf(leaf);
+        }
 
         if (autoFocusRecent) {
             setTimeout(async () => {
@@ -501,14 +520,14 @@ export default class FolderCardPlugin extends Plugin {
                     const allFiles = this.app.vault.getFiles().filter(f => f.extension === 'md');
                     if (allFiles.length > 0) {
                         allFiles.sort((a, b) => b.stat.mtime - a.stat.mtime);
-                        targetFile = allFiles[0]; 
+                        targetFile = allFiles[0];
                     }
                 }
 
                 if (targetFile && targetFile.parent) {
                     view.sortOrder = 'time';
                     view.sortDirection = 'desc';
-                    
+
                     await view.renderFolder(targetFile.parent as TFolder);
 
                     const mainLeaf = workspace.getLeaf(false);
@@ -534,7 +553,7 @@ export default class FolderCardPlugin extends Plugin {
                             card.classList.add('is-active');
                         }
                     }, 150);
-                    
+
                     if (mainLeaf.view instanceof MarkdownView) {
                         const editor = mainLeaf.view.editor;
                         const firstLineLength = editor.getLine(0).length;
@@ -545,7 +564,7 @@ export default class FolderCardPlugin extends Plugin {
 
                 window.dispatchEvent(new Event('resize'));
 
-            }, 100); 
+            }, 100);
         }
     }
 
@@ -553,7 +572,7 @@ export default class FolderCardPlugin extends Plugin {
         const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
         if (leaf) {
             if (Platform.isMobile) {
-                this.app.workspace.revealLeaf(leaf);
+                this.app.workspace.setActiveLeaf(leaf, { focus: true });
             }
             (leaf.view as FolderCardView).renderFolder(folder);
         }
