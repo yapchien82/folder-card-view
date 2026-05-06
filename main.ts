@@ -655,56 +655,13 @@ export default class FolderCardPlugin extends Plugin {
         if (autoFocusRecent) {
             setTimeout(async () => {
                 const view = leaf.view as FolderCardView;
+                view.sortOrder = 'time';
+                view.sortDirection = 'desc';
 
-                let targetFile = workspace.getActiveFile();
-                if (!targetFile) {
-                    const allFiles = this.app.vault.getFiles().filter(f => f.extension === 'md');
-                    if (allFiles.length > 0) {
-                        allFiles.sort((a, b) => b.stat.mtime - a.stat.mtime);
-                        targetFile = allFiles[0];
-                    }
-                }
-
-                if (targetFile && targetFile.parent) {
-                    view.sortOrder = 'time';
-                    view.sortDirection = 'desc';
-
-                    await view.renderFolder(targetFile.parent as TFolder);
-
-                    const mainLeaf = workspace.getLeaf(false);
-                    await mainLeaf.openFile(targetFile);
-
-                    // 同步展开左侧文件树
-                    (this.app as any).commands.executeCommandById('file-explorer:reveal-active-file');
-
-                    // 延迟等渲染，双边同时居中滑行！
-                    setTimeout(() => {
-                        document.querySelectorAll('.is-plugin-active-folder').forEach(el => {
-                            el.classList.remove('is-plugin-active-folder');
-                        });
-                        const targetFolderEl = document.querySelector(`.nav-folder-title[data-path="${targetFile?.parent?.path}"]`);
-                        if (targetFolderEl) {
-                            targetFolderEl.classList.add('is-plugin-active-folder');
-                            targetFolderEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-
-                        const card = view.contentContainer.querySelector(`.file-card[data-path="${targetFile?.path}"]`);
-                        if (card) {
-                            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            card.classList.add('is-active');
-                        }
-                    }, 150);
-
-                    if (mainLeaf.view instanceof MarkdownView) {
-                        const editor = mainLeaf.view.editor;
-                        const firstLineLength = editor.getLine(0).length;
-                        editor.setCursor({ line: 0, ch: firstLineLength });
-                        editor.focus();
-                    }
-                }
+                const rootFolder = this.app.vault.getRoot();
+                await view.renderFolder(rootFolder);
 
                 window.dispatchEvent(new Event('resize'));
-
             }, 100);
         }
     }
