@@ -6,6 +6,15 @@ const VIEW_TYPE_CARD = "folder-card-view";
 const folderFileCache = new Map<string, TFile[]>();
 // 预览读取上限：超过此数量的卡片不读取文件内容，仅显示骨架
 const PREVIEW_LIMIT = 20;
+// 卡片渲染数量上限：超过此数量截断，防止极端情况卡死
+const MAX_CARDS = 500;
+
+// Obsidian 可直接编辑的文本文件扩展名
+const OBSIDIAN_EDITABLE_EXTENSIONS = new Set(['md', 'canvas', 'txt', 'base']);
+
+function isObsidianEditable(file: TFile): boolean {
+    return OBSIDIAN_EDITABLE_EXTENSIONS.has(file.extension.toLowerCase());
+}
 
 class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
     onChoose: (folder: TFolder) => void;
@@ -65,28 +74,162 @@ class FolderCardView extends ItemView {
 
         this.contentContainer.addEventListener('contextmenu', (event: MouseEvent) => {
             const target = event.target as HTMLElement;
-            if (target.closest('.file-card')) return; 
+            if (target.closest('.file-card')) return;
 
             if (this.currentFolder) {
-                const menu = new Menu();
-                this.app.workspace.trigger('file-menu', menu, this.currentFolder, 'file-explorer');
-                menu.showAtMouseEvent(event);
+                this.showFolderMenu({ x: event.clientX, y: event.clientY });
             }
+        });
+
+        // 移动端：空白区长按弹出文件夹菜单
+        this.addLongPress(this.contentContainer, (pos) => {
+            this.showFolderMenu(pos);
         });
     }
 
     renderEmptyState() {
         this.headerContainer.empty();
         this.contentContainer.empty();
-        this.contentContainer.createEl("p", { 
-            text: "正在加载...", 
-            attr: { style: "text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 13px;" } 
+        this.contentContainer.createEl("p", {
+            text: "正在加载...",
+            attr: { style: "text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 13px;" }
+        });
+    }
+
+    showFileMenu(file: TFile, pos: { x: number; y: number }) {
+        const menu = new Menu();
+
+        menu.addItem((item) => item
+            .setTitle("在新标签页中打开")
+            .setIcon("file-plus")
+            .onClick(() => this.app.workspace.getLeaf('tab').openFile(file))
+        );
+
+        menu.addSeparator();
+
+        menu.addItem((item) => item
+            .setTitle("移至其他目录")
+            .setIcon("folder-input")
+            .onClick(() => {
+                new FolderSuggestModal(this.app, async (folder) => {
+                    await this.app.fileManager.renameFile(file, `${folder.path}/${file.name}`);
+                }).open();
+            })
+        );
+
+        menu.addItem((item) => item
+            .setTitle("复制文件")
+            .setIcon("copy")
+            .onClick(async () => {
+                const newPath = file.path.replace(/(\.[^.]+)$/, ' (副本)$1');
+                await this.app.vault.copy(file, newPath);
+            })
+        );
+
+        menu.addSeparator();
+
+        menu.addItem((item) => item
+            .setTitle("复制路径")
+            .setIcon("link")
+            .onClick(() => {
+                const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+                navigator.clipboard.writeText(fullPath);
+            })
+        );
+
+        menu.addItem((item) => item
+            .setTitle("在系统中显示")
+            .setIcon("folder")
+            .onClick(() => {
+                try {
+                    const electron = (window as any).require?.('electron');
+                    const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
+                    electron?.shell?.showItemInFolder(fullPath);
+                } catch {
+                    new Notice("仅桌面端支持此功能");
+                }
+            })
+        );
+
+        menu.addSeparator();
+
+        menu.addItem((item) => item
+            .setTitle("删除")
+            .setIcon("trash")
+            .onClick(() => this.app.fileManager.trashFile(file))
+        );
+
+        menu.showAtPosition(pos);
+    }
+
+    showFolderMenu(pos: { x: number; y: number }) {
+        if (!this.currentFolder) return;
+        const menu = new Menu();
+        this.app.workspace.trigger('file-menu', menu, this.currentFolder, 'file-explorer');
+        menu.showAtPosition(pos);
+    }
+
+    private addLongPress(el: HTMLElement, callback: (pos: { x: number; y: number }) => void, duration = 500) {
+        let timer: number | null = null;
+        let startX = 0;
+        let startY = 0;
+        const threshold = 10;
+
+        el.addEventListener('touchstart', (e: TouchEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.file-card-more-btn')) return;
+            if (e.touches.length !== 1) return;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            (el as any).__longPressFired = false;
+            timer = window.setTimeout(() => {
+                (el as any).__longPressFired = true;
+                callback({ x: startX, y: startY });
+                timer = null;
+            }, duration);
+        }, { passive: true });
+
+        el.addEventListener('touchmove', (e: TouchEvent) => {
+            if (timer === null) return;
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+                clearTimeout(timer);
+                timer = null;
+            }
+        }, { passive: true });
+
+        el.addEventListener('touchend', () => {
+            if (timer !== null) {
+                clearTimeout(timer);
+                timer = null;
+            }
+        });
+
+        el.addEventListener('touchcancel', () => {
+            if (timer !== null) {
+                clearTimeout(timer);
+                timer = null;
+            }
         });
     }
 
     renderHeader() {
         this.headerContainer.empty();
         if (!this.currentFolder) return;
+
+        // 根目录图标：点击回到仓库根目录
+        const rootBtn = this.headerContainer.createEl("button", { cls: "card-icon-btn card-root-btn" });
+        setIcon(rootBtn, "home");
+        rootBtn.title = "返回根目录";
+        if (this.currentFolder.path === "/") {
+            rootBtn.classList.add("is-disabled");
+        }
+        rootBtn.onclick = async () => {
+            if (this.currentFolder?.path === "/") return;
+            const rootFolder = this.app.vault.getRoot();
+            await this.renderFolder(rootFolder);
+        };
 
         const sortBtn = this.headerContainer.createEl("button", { cls: "card-icon-btn" });
         setIcon(sortBtn, "arrow-up-down");
@@ -216,6 +359,20 @@ class FolderCardView extends ItemView {
                 this.renderCards();
             }, 250);
         });
+
+        // 移动端：右侧文件夹菜单按钮（功能等同长按空白区域）
+        if (Platform.isMobile) {
+            const folderMenuBtn = this.headerContainer.createEl("button", {
+                cls: "card-icon-btn card-folder-menu-btn"
+            });
+            setIcon(folderMenuBtn, "menu");
+            folderMenuBtn.title = "文件夹操作";
+            folderMenuBtn.onclick = (e) => {
+                if (this.currentFolder) {
+                    this.showFolderMenu({ x: e.clientX, y: e.clientY });
+                }
+            };
+        }
     }
 
     setSort(order: 'name' | 'time', direction: 'asc' | 'desc') {
@@ -246,7 +403,8 @@ class FolderCardView extends ItemView {
         } else {
             const allVaultFiles = this.app.vault.getFiles();
             if (this.currentFolder.path === "/") {
-                files = [...allVaultFiles];
+                // 根目录仅显示直接子文件，避免加载全部文件导致卡死
+                files = allVaultFiles.filter(f => !f.path.includes("/"));
             } else {
                 const folderPathWithSlash = this.currentFolder.path + '/';
                 files = allVaultFiles.filter(f => f.path.startsWith(folderPathWithSlash) || f.parent === this.currentFolder);
@@ -281,6 +439,13 @@ class FolderCardView extends ItemView {
             }
         });
 
+        // 超出上限时截断，避免超大目录渲染卡死
+        let truncated = false;
+        if (files.length > MAX_CARDS) {
+            files = files.slice(0, MAX_CARDS);
+            truncated = true;
+        }
+
         // 方案 A：先异步读取前 PREVIEW_LIMIT 张卡片的文件内容，再一次性渲染
         const filesToPreview = files.slice(0, PREVIEW_LIMIT);
         const previewContents = await Promise.all(
@@ -294,7 +459,10 @@ class FolderCardView extends ItemView {
         const activeFile = this.app.workspace.getActiveFile();
 
         for (const file of files) {
-            const card = cardList.createEl("div", { cls: "file-card" });
+            const editable = isObsidianEditable(file);
+            const card = cardList.createEl("div", {
+                cls: `file-card ${editable ? '' : 'file-card--non-editable'}`
+            });
             card.setAttribute("data-path", file.path);
 
             if (activeFile && activeFile.path === file.path) {
@@ -309,7 +477,19 @@ class FolderCardView extends ItemView {
                 card.createEl("div", { cls: "file-card-path", text: relPath });
             }
 
-            card.createEl("div", { cls: "file-card-title", text: file.basename });
+            const titleRow = card.createEl("div", { cls: "file-card-title-row" });
+            const titleEl = titleRow.createEl("div", { cls: "file-card-title", text: file.basename });
+            // 非可编辑文件显示扩展名标签
+            if (!editable) {
+                const extBadge = titleRow.createEl("span", { cls: "file-card-ext-badge", text: file.extension.toUpperCase() });
+            }
+            const moreBtn = titleRow.createEl("button", { cls: "file-card-more-btn" });
+            setIcon(moreBtn, "more-vertical");
+            moreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.showFileMenu(file, { x: e.clientX, y: e.clientY });
+            });
 
             // \u65b9\u6848 A\uff1a\u4f7f\u7528\u9884\u8bfb\u53d6\u7684\u5185\u5bb9\uff08\u524d PREVIEW_LIMIT \u5f20\uff09\uff0c\u5176\u4f59\u5361\u7247\u4ece\u5143\u6570\u636e\u7f13\u5b58\u83b7\u53d6\u6807\u7b7e
             const cachedContent = previewMap.get(file.path);
@@ -342,6 +522,10 @@ class FolderCardView extends ItemView {
             }
 
             card.onclick = async () => {
+                if ((card as any).__longPressFired) {
+                    (card as any).__longPressFired = false;
+                    return;
+                }
                 const allCards = this.contentContainer.querySelectorAll('.file-card');
                 allCards.forEach(c => c.classList.remove('is-active'));
                 card.classList.add("is-active");
@@ -359,70 +543,22 @@ class FolderCardView extends ItemView {
 
             card.oncontextmenu = (event: MouseEvent) => {
                 event.preventDefault();
-                const menu = new Menu();
-
-                menu.addItem((item) => item
-                    .setTitle("在新标签页中打开")
-                    .setIcon("file-plus")
-                    .onClick(() => this.app.workspace.getLeaf('tab').openFile(file))
-                );
-
-                menu.addSeparator();
-
-                menu.addItem((item) => item
-                    .setTitle("移至其他目录")
-                    .setIcon("folder-input")
-                    .onClick(() => {
-                        new FolderSuggestModal(this.app, async (folder) => {
-                            await this.app.fileManager.renameFile(file, `${folder.path}/${file.name}`);
-                        }).open();
-                    })
-                );
-
-                menu.addItem((item) => item
-                    .setTitle("复制文件")
-                    .setIcon("copy")
-                    .onClick(async () => {
-                        const newPath = file.path.replace(/(\.[^.]+)$/, ' (副本)$1');
-                        await this.app.vault.copy(file, newPath);
-                    })
-                );
-
-                menu.addSeparator();
-
-                menu.addItem((item) => item
-                    .setTitle("复制路径")
-                    .setIcon("link")
-                    .onClick(() => {
-                    const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
-                    navigator.clipboard.writeText(fullPath);
-                })
-                );
-
-                menu.addItem((item) => item
-                    .setTitle("在系统中显示")
-                    .setIcon("folder")
-                    .onClick(() => {
-                        try {
-                            const electron = (window as any).require?.('electron');
-                            const fullPath = (this.app.vault.adapter as any).getFullPath(file.path);
-                            electron?.shell?.showItemInFolder(fullPath);
-                        } catch {
-                            new Notice("仅桌面端支持此功能");
-                        }
-                    })
-                );
-
-                menu.addSeparator();
-
-                menu.addItem((item) => item
-                    .setTitle("删除")
-                    .setIcon("trash")
-                    .onClick(() => this.app.fileManager.trashFile(file))
-                );
-
-                menu.showAtMouseEvent(event);
+                this.showFileMenu(file, { x: event.clientX, y: event.clientY });
             };
+
+            // 移动端长按弹出文件菜单
+            this.addLongPress(card, (pos) => {
+                this.showFileMenu(file, pos);
+            });
+        }
+
+        // 截断提示
+        if (truncated) {
+            const truncateNotice = cardList.createEl("div", { cls: "folder-card-truncate-notice" });
+            truncateNotice.createEl("span", {
+                text: `仅显示前 ${MAX_CARDS} 个文件，使用搜索过滤或进入子目录查看其余文件`,
+                attr: { style: "color: var(--text-muted); font-size: 12px;" }
+            });
         }
     }
 }
