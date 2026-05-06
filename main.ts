@@ -45,11 +45,12 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 
 class FolderCardView extends ItemView {
     currentFolder: TFolder | null = null;
-    sortOrder: 'name' | 'time' = 'time'; 
-    sortDirection: 'desc' | 'asc' = 'desc'; 
-    searchQuery: string = ''; 
+    sortOrder: 'name' | 'time' = 'time';
+    sortDirection: 'desc' | 'asc' = 'desc';
+    searchQuery: string = '';
     isSearchOpen: boolean = false;
     searchDebounceTimer: number | null = null;
+    renderGeneration = 0;
 
     headerContainer: HTMLElement;
     contentContainer: HTMLElement;
@@ -394,6 +395,9 @@ class FolderCardView extends ItemView {
     async renderCards() {
         if (!this.currentFolder) return;
 
+        // 渲染代数锁：新渲染开始时自动使旧渲染作废，避免并发 DOM 冲突
+        const generation = ++this.renderGeneration;
+
         // 延迟 100ms 才显示加载态，避免快目录闪现"加载中..."
         let loadingTimer: number | null = window.setTimeout(() => {
             loadingTimer = null;
@@ -460,7 +464,8 @@ class FolderCardView extends ItemView {
         );
         const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
 
-        // 数据就绪后取消延迟加载态并渲染卡片
+        // 数据就绪后取消延迟加载态并渲染卡片；若代数不匹配说明已触发新渲染，放弃本次
+        if (this.renderGeneration !== generation) return;
         if (loadingTimer !== null) clearTimeout(loadingTimer);
         this.contentContainer.empty();
         const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
