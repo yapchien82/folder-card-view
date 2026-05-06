@@ -467,8 +467,11 @@ class FolderCardView extends ItemView {
         // 数据就绪后取消延迟加载态并渲染卡片；若代数不匹配说明已触发新渲染，放弃本次
         if (this.renderGeneration !== generation) return;
         if (loadingTimer !== null) clearTimeout(loadingTimer);
-        this.contentContainer.empty();
-        const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
+        // 在离屏 fragment 中构建所有卡片，再原子替换，避免反复操作 DOM 影响左侧文件树布局
+        const fragment = document.createDocumentFragment();
+        const cardList = document.createElement("div");
+        cardList.className = "folder-card-list";
+        fragment.appendChild(cardList);
         const activeFile = this.app.workspace.getActiveFile();
 
         for (const file of files) {
@@ -573,6 +576,10 @@ class FolderCardView extends ItemView {
                 attr: { style: "color: var(--text-muted); font-size: 12px;" }
             });
         }
+
+        // 原子替换：一次性清除旧内容并插入新卡片，最小化布局震荡
+        this.contentContainer.empty();
+        this.contentContainer.appendChild(fragment);
     }
 }
 
