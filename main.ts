@@ -85,6 +85,10 @@ class FolderCardView extends ItemView {
         this.addLongPress(this.contentContainer, (pos) => {
             this.showFolderMenu(pos);
         });
+
+        // 默认加载根目录
+        const rootFolder = this.app.vault.getRoot();
+        await this.renderFolder(rootFolder);
     }
 
     renderEmptyState() {

@@ -2,13 +2,24 @@
    第 1 部分：父级总宽锁定 + 动态面板内容锁定
    =================================================== */
 
-/* 隐藏原生左侧边栏中的文件（多层级覆盖，确保无论如何展开都不会出现文件条目） */
+/* 隐藏原生左侧边栏中的文件（多层级覆盖 + 零高度 + 容器塌陷，确保文件条目完全不占空间） */
 .workspace-leaf-content[data-type="file-explorer"] .nav-file,
+.workspace-leaf-content[data-type="file-explorer"] .nav-file-container,
 .nav-folder.mod-root .nav-file,
 .nav-folder-children .nav-file {
     display: none !important;
     height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
     overflow: hidden !important;
+}
+
+/* 文件浏览器中的子文件容器塌陷，防止空容器撑出空间 */
+.workspace-leaf-content[data-type="file-explorer"] .nav-folder-children {
+    min-height: 0 !important;
 }
 
 /* 1：只要左侧栏开启了卡片视图，整个大外框死锁 520px */
