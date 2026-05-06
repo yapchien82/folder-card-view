@@ -638,6 +638,7 @@ export default class FolderCardPlugin extends Plugin {
     async activateView(autoFocusRecent: boolean = true) {
         const { workspace } = this.app;
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
+        const isNewLeaf = !leaf;
 
         if (!leaf) {
             if (Platform.isMobile) {
@@ -653,11 +654,14 @@ export default class FolderCardPlugin extends Plugin {
             await leaf.setViewState({ type: VIEW_TYPE_CARD, active: true });
         }
 
-        // 移动端用 setActiveLeaf 来强制切换标签页，比 revealLeaf 更可靠
-        if (Platform.isMobile) {
-            workspace.setActiveLeaf(leaf, { focus: true });
-        } else {
-            workspace.revealLeaf(leaf);
+        // 新创建的 leaf 需要显示；已存在的仅在主动打开（ribbon 图标）时切换焦点，
+        // 文件夹点击时不抢焦点，避免文件树重渲染导致文件夹闪烁消失
+        if (isNewLeaf || autoFocusRecent) {
+            if (Platform.isMobile) {
+                workspace.setActiveLeaf(leaf, { focus: true });
+            } else {
+                workspace.revealLeaf(leaf);
+            }
         }
 
         if (autoFocusRecent) {
