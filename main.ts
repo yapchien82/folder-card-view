@@ -450,8 +450,8 @@ class FolderCardView extends ItemView {
             truncated = true;
         }
 
-        // 方案 A：先异步读取前 PREVIEW_LIMIT 张卡片的文件内容，再一次性渲染
-        const filesToPreview = files.slice(0, PREVIEW_LIMIT);
+        // 方案 A：仅对可编辑文件异步读取前 PREVIEW_LIMIT 张的内容，图片等文件直接跳过
+        const filesToPreview = files.filter(f => isObsidianEditable(f)).slice(0, PREVIEW_LIMIT);
         const previewContents = await Promise.all(
             filesToPreview.map(f => this.app.vault.cachedRead(f).catch(() => ''))
         );
