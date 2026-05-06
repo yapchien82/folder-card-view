@@ -394,9 +394,12 @@ class FolderCardView extends ItemView {
     async renderCards() {
         if (!this.currentFolder) return;
 
-        // 立即显示加载状态，避免空白闪烁
-        this.contentContainer.empty();
-        this.contentContainer.createEl("div", { cls: "folder-card-loading" }).createEl("span", { text: "加载中..." });
+        // 延迟 100ms 才显示加载态，避免快目录闪现"加载中..."
+        let loadingTimer: number | null = window.setTimeout(() => {
+            loadingTimer = null;
+            this.contentContainer.empty();
+            this.contentContainer.createEl("div", { cls: "folder-card-loading" }).createEl("span", { text: "加载中..." });
+        }, 100);
 
         // 使用缓存获取文件夹下的文件列表（方案 D：文件列表缓存）
         const cacheKey = this.currentFolder.path;
@@ -457,7 +460,8 @@ class FolderCardView extends ItemView {
         );
         const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
 
-        // 数据就绪后才清空加载态并渲染卡片，消除空白间隙
+        // 数据就绪后取消延迟加载态并渲染卡片
+        if (loadingTimer !== null) clearTimeout(loadingTimer);
         this.contentContainer.empty();
         const cardList = this.contentContainer.createEl("div", { cls: "folder-card-list" });
         const activeFile = this.app.workspace.getActiveFile();
