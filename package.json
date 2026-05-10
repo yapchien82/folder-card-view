@@ -1,13 +1,13 @@
 {
 	"name": "folder-card-view",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"description": "在单独的卡片视图中显示文件夹内容，并在左侧文件树中隐藏文件。",
 	"main": "main.js",
 	"author": "Kelvin",
 	"repository": "https://github.com/yapchien82/folder-card-view",
 	"scripts": {
 		"dev": "esbuild main.ts --bundle --watch --format=cjs --external:obsidian --outfile=main.js",
-		"build": "esbuild main.ts --bundle --minify --format=cjs --external:obsidian --outfile=main.js"
+		"build": "esbuild main.ts --bundle --format=cjs --external:obsidian --outfile=main.js --keep-names"
 	},
 	"devDependencies": {
 		"@types/node": "^16.11.6",

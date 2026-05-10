@@ -417,3 +417,30 @@
     font-size: 11px;
     padding: 2px 7px;
 }
+
+/* ===================================================
+   第 5 部分：软链文件卡片样式
+   =================================================== */
+
+/* 软链卡片：微弱的虚线边框提示 */
+.file-card--symlink {
+    border-style: dashed;
+    border-color: var(--interactive-accent);
+    opacity: 0.85;
+}
+
+.file-card--symlink:hover {
+    opacity: 1;
+    border-color: var(--interactive-accent-hover);
+}
+
+/* 软链徽标 */
+.file-card-symlink-badge {
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--interactive-accent);
+    margin-left: 4px;
+    line-height: 1;
+    align-self: flex-start;
+    margin-top: 2px;
+}

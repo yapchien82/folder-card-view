@@ -1,2 +1,722 @@
-var S=Object.defineProperty;var _=Object.getOwnPropertyDescriptor;var H=Object.getOwnPropertyNames;var B=Object.prototype.hasOwnProperty;var Q=(f,m)=>{for(var e in m)S(f,e,{get:m[e],enumerable:!0})},$=(f,m,e,a)=>{if(m&&typeof m=="object"||typeof m=="function")for(let t of H(m))!B.call(f,t)&&t!==e&&S(f,t,{get:()=>m[t],enumerable:!(a=_(m,t))||a.enumerable});return f};var q=f=>$(S({},"__esModule",{value:!0}),f);var v=(f,m,e)=>new Promise((a,t)=>{var r=s=>{try{d(e.next(s))}catch(n){t(n)}},l=s=>{try{d(e.throw(s))}catch(n){t(n)}},d=s=>s.done?a(s.value):Promise.resolve(s.value).then(r,l);d((e=e.apply(f,m)).next())});var N={};Q(N,{default:()=>I});module.exports=q(N);var c=require("obsidian");var E="folder-card-view",y=new Map,R=20,D=500,X=new Set(["md","canvas","txt","base"]);function P(f){return X.has(f.extension.toLowerCase())}var A=class extends c.FuzzySuggestModal{constructor(e,a){super(e);this.onChoose=a}getItems(){let e=[];return this.app.vault.getAllLoadedFiles().forEach(a=>{a instanceof c.TFolder&&e.push(a)}),e}getItemText(e){return e.path==="/"?"\u4ED3\u5E93\u6839\u76EE\u5F55":e.path}onChooseItem(e,a){this.onChoose(e)}},O=class extends c.ItemView{constructor(e){super(e);this.currentFolder=null;this.sortOrder="time";this.sortDirection="desc";this.searchQuery="";this.isSearchOpen=!1;this.searchDebounceTimer=null;this.renderGeneration=0}getViewType(){return E}getDisplayText(){return"\u6587\u4EF6\u5361\u7247"}getIcon(){return"layout-list"}onOpen(){return v(this,null,function*(){let e=this.containerEl.children[1];e.empty(),e.addClass("folder-card-view-container"),this.headerContainer=e.createEl("div",{cls:"folder-card-header"}),this.contentContainer=e.createEl("div",{cls:"folder-card-content-area"}),this.renderEmptyState(),this.contentContainer.addEventListener("contextmenu",t=>{t.target.closest(".file-card")||this.currentFolder&&this.showFolderMenu({x:t.clientX,y:t.clientY})}),this.addLongPress(this.contentContainer,t=>{this.showFolderMenu(t)});let a=this.app.vault.getRoot();yield this.renderFolder(a)})}renderEmptyState(){this.headerContainer.empty(),this.contentContainer.empty(),this.contentContainer.createEl("p",{text:"\u6B63\u5728\u52A0\u8F7D...",attr:{style:"text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 13px;"}})}showFileMenu(e,a){let t=new c.Menu;t.addItem(r=>r.setTitle("\u5728\u65B0\u6807\u7B7E\u9875\u4E2D\u6253\u5F00").setIcon("file-plus").onClick(()=>this.app.workspace.getLeaf("tab").openFile(e))),t.addSeparator(),t.addItem(r=>r.setTitle("\u79FB\u81F3\u5176\u4ED6\u76EE\u5F55").setIcon("folder-input").onClick(()=>{new A(this.app,l=>v(this,null,function*(){yield this.app.fileManager.renameFile(e,`${l.path}/${e.name}`)})).open()})),t.addItem(r=>r.setTitle("\u590D\u5236\u6587\u4EF6").setIcon("copy").onClick(()=>v(this,null,function*(){let l=e.path.replace(/(\.[^.]+)$/," (\u526F\u672C)$1");yield this.app.vault.copy(e,l)}))),t.addSeparator(),t.addItem(r=>r.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("link").onClick(()=>{let l=this.app.vault.adapter.getFullPath(e.path);navigator.clipboard.writeText(l)})),t.addItem(r=>r.setTitle("\u5728\u7CFB\u7EDF\u4E2D\u663E\u793A").setIcon("folder").onClick(()=>{var l,d;try{let s=(l=window.require)==null?void 0:l.call(window,"electron"),n=this.app.vault.adapter.getFullPath(e.path);(d=s==null?void 0:s.shell)==null||d.showItemInFolder(n)}catch(s){new c.Notice("\u4EC5\u684C\u9762\u7AEF\u652F\u6301\u6B64\u529F\u80FD")}})),t.addSeparator(),t.addItem(r=>r.setTitle("\u5220\u9664").setIcon("trash").onClick(()=>this.app.fileManager.trashFile(e))),t.showAtPosition(a)}showFolderMenu(e){if(!this.currentFolder)return;let a=new c.Menu;this.app.workspace.trigger("file-menu",a,this.currentFolder,"file-explorer"),a.showAtPosition(e)}addLongPress(e,a,t=500){let r=null,l=0,d=0,s=10;e.addEventListener("touchstart",n=>{n.target.closest(".file-card-more-btn")||n.touches.length===1&&(l=n.touches[0].clientX,d=n.touches[0].clientY,e.__longPressFired=!1,r=window.setTimeout(()=>{e.__longPressFired=!0,a({x:l,y:d}),r=null},t))},{passive:!0}),e.addEventListener("touchmove",n=>{if(r===null)return;let u=n.touches[0].clientX-l,g=n.touches[0].clientY-d;(Math.abs(u)>s||Math.abs(g)>s)&&(clearTimeout(r),r=null)},{passive:!0}),e.addEventListener("touchend",()=>{r!==null&&(clearTimeout(r),r=null)}),e.addEventListener("touchcancel",()=>{r!==null&&(clearTimeout(r),r=null)})}renderHeader(){if(this.headerContainer.empty(),!this.currentFolder)return;let e=this.headerContainer.createEl("button",{cls:"card-icon-btn card-root-btn"});(0,c.setIcon)(e,"home"),e.title="\u8FD4\u56DE\u6839\u76EE\u5F55",this.currentFolder.path==="/"&&e.classList.add("is-disabled"),e.onclick=()=>v(this,null,function*(){var n;if(((n=this.currentFolder)==null?void 0:n.path)==="/")return;let s=this.app.vault.getRoot();yield this.renderFolder(s)});let a=this.headerContainer.createEl("button",{cls:"card-icon-btn"});(0,c.setIcon)(a,"arrow-up-down"),a.title="\u6392\u5E8F\u65B9\u5F0F";let t=this.headerContainer.createEl("button",{cls:"card-icon-btn"});(0,c.setIcon)(t,"crosshair"),t.title="\u5168\u5C40\u5B9A\u4F4D\u5F53\u524D\u6587\u4EF6";let r=this.headerContainer.createEl("button",{cls:`card-icon-btn ${this.isSearchOpen?"is-active":""}`});(0,c.setIcon)(r,"search"),r.title="\u641C\u7D22\u8FC7\u6EE4";let d=this.headerContainer.createEl("div",{cls:`folder-card-search-container ${this.isSearchOpen?"is-active":""}`}).createEl("input",{type:"text",cls:"folder-card-search-input",placeholder:"\u8FC7\u6EE4\u8BCD..."});if(d.value=this.searchQuery,a.onclick=s=>{let n=new c.Menu;n.addItem(u=>{u.setTitle("\u540D\u79F0 (A \u5230 Z)").setIcon("arrow-down-a-z").setChecked(this.sortOrder==="name"&&this.sortDirection==="asc").onClick(()=>this.setSort("name","asc"))}),n.addItem(u=>{u.setTitle("\u540D\u79F0 (Z \u5230 A)").setIcon("arrow-up-z-a").setChecked(this.sortOrder==="name"&&this.sortDirection==="desc").onClick(()=>this.setSort("name","desc"))}),n.addSeparator(),n.addItem(u=>{u.setTitle("\u6700\u8FD1\u4FEE\u6539\u4F18\u5148").setIcon("clock").setChecked(this.sortOrder==="time"&&this.sortDirection==="desc").onClick(()=>this.setSort("time","desc"))}),n.addItem(u=>{u.setTitle("\u6700\u65E9\u4FEE\u6539\u4F18\u5148").setIcon("history").setChecked(this.sortOrder==="time"&&this.sortDirection==="asc").onClick(()=>this.setSort("time","asc"))}),n.showAtMouseEvent(s)},t.onclick=()=>v(this,null,function*(){var n;let s=this.app.workspace.getActiveFile();if(!s){new c.Notice("\u5F53\u524D\u6CA1\u6709\u6253\u5F00\u7684\u7B14\u8BB0");return}this.searchQuery!==""&&(this.searchQuery="",this.isSearchOpen=!1,this.renderHeader()),(!this.currentFolder||this.currentFolder.path!==((n=s.parent)==null?void 0:n.path))&&(yield this.renderFolder(s.parent)),this.app.commands.executeCommandById("file-explorer:reveal-active-file"),setTimeout(()=>{var T;document.querySelectorAll(".is-plugin-active-folder").forEach(b=>{b.classList.remove("is-plugin-active-folder")});let u=document.querySelector(`.nav-folder-title[data-path="${(T=s.parent)==null?void 0:T.path}"]`);u&&(u.classList.add("is-plugin-active-folder"),u.scrollIntoView({behavior:"smooth",block:"center"}));let g=this.contentContainer.querySelector(`.file-card[data-path="${s.path}"]`);g&&(g.scrollIntoView({behavior:"smooth",block:"center"}),this.contentContainer.querySelectorAll(".file-card").forEach(i=>i.classList.remove("is-active")),g.classList.add("is-active"),g.animate([{transform:"scale(0.97)",backgroundColor:"var(--interactive-accent)"},{transform:"scale(1)",backgroundColor:"var(--background-modifier-active-hover)"}],{duration:350,easing:"ease-out"}))},150)}),r.onclick=()=>{this.isSearchOpen=!this.isSearchOpen,this.renderHeader(),this.isSearchOpen?setTimeout(()=>{let s=this.headerContainer.querySelector(".folder-card-search-input");s&&s.focus()},50):(this.searchQuery="",this.renderCards())},d.addEventListener("input",s=>{this.searchQuery=s.target.value,this.searchDebounceTimer&&clearTimeout(this.searchDebounceTimer),this.searchDebounceTimer=window.setTimeout(()=>{this.renderCards()},250)}),c.Platform.isMobile){let s=this.headerContainer.createEl("button",{cls:"card-icon-btn card-folder-menu-btn"});(0,c.setIcon)(s,"menu"),s.title="\u6587\u4EF6\u5939\u64CD\u4F5C",s.onclick=n=>{this.currentFolder&&this.showFolderMenu({x:n.clientX,y:n.clientY})}}}setSort(e,a){this.sortOrder=e,this.sortDirection=a,this.renderCards()}renderFolder(e){return v(this,null,function*(){this.currentFolder=e,this.renderHeader(),yield this.renderCards()})}renderCards(){return v(this,null,function*(){var b;if(!this.currentFolder)return;let e=++this.renderGeneration,a=window.setTimeout(()=>{a=null,this.contentContainer.empty(),this.contentContainer.createEl("div",{cls:"folder-card-loading"}).createEl("span",{text:"\u52A0\u8F7D\u4E2D..."})},100),t=this.currentFolder.path,r;if(this.searchQuery.trim()===""&&y.has(t))r=[...y.get(t)];else{let i=this.app.vault.getFiles();if(this.currentFolder.path==="/")r=i.filter(p=>!p.path.includes("/"));else{let p=this.currentFolder.path+"/";r=i.filter(h=>h.path.startsWith(p)||h.parent===this.currentFolder)}this.searchQuery.trim()===""&&y.set(t,[...r])}if(this.searchQuery.trim()!==""){let i=this.searchQuery.toLowerCase();r=r.filter(p=>p.basename.toLowerCase().includes(i))}r.sort((i,p)=>{var M,L,x,o;let h=i.parent===this.currentFolder,C=p.parent===this.currentFolder;if(h&&!C)return-1;if(!h&&C)return 1;if(((M=i.parent)==null?void 0:M.path)!==((L=p.parent)==null?void 0:L.path))return(((x=i.parent)==null?void 0:x.path)||"").localeCompare(((o=p.parent)==null?void 0:o.path)||"");if(this.sortOrder==="name"){let w=i.basename.localeCompare(p.basename);return this.sortDirection==="asc"?w:-w}else return this.sortDirection==="asc"?i.stat.mtime-p.stat.mtime:p.stat.mtime-i.stat.mtime});let l=!1;r.length>D&&(r=r.slice(0,D),l=!0);let d=r.filter(i=>P(i)).slice(0,R),s=yield Promise.all(d.map(i=>this.app.vault.cachedRead(i).catch(()=>""))),n=new Map(d.map((i,p)=>[i.path,s[p]]));if(this.renderGeneration!==e)return;a!==null&&clearTimeout(a);let u=document.createDocumentFragment(),g=document.createElement("div");g.className="folder-card-list",u.appendChild(g);let T=this.app.workspace.getActiveFile();for(let i of r){let p=P(i),h=g.createEl("div",{cls:`file-card ${p?"":"file-card--non-editable"}`});if(h.setAttribute("data-path",i.path),T&&T.path===i.path&&h.classList.add("is-active"),i.parent&&i.parent!==this.currentFolder){let o=i.parent.path;this.currentFolder.path!=="/"&&(o=o.substring(this.currentFolder.path.length+1)),h.createEl("div",{cls:"file-card-path",text:o})}let C=h.createEl("div",{cls:"file-card-title-row"}),M=C.createEl("div",{cls:"file-card-title",text:i.basename});if(!p){let o=C.createEl("span",{cls:"file-card-ext-badge",text:i.extension.toUpperCase()})}let L=C.createEl("button",{cls:"file-card-more-btn"});(0,c.setIcon)(L,"more-vertical"),L.addEventListener("click",o=>{o.stopPropagation(),o.preventDefault(),this.showFileMenu(i,{x:o.clientX,y:o.clientY})});let x=n.get(i.path);if(x!==void 0){let o=x.split(`
-`).slice(0,5).join(" ").trim(),w=/#[\w\u4e00-\u9fa5]+/g,F=o.match(w);if(F&&F.length>0){let k=h.createEl("div",{cls:"file-card-tags"});F.forEach(V=>{k.createEl("span",{cls:"file-card-tag",text:V})}),o=o.replace(w,"").trim()}if(o){let k=o.replace(/[#*]/g,"").trim();h.createEl("div",{cls:"file-card-preview",text:k||"..."})}}else{let o=this.app.metadataCache.getFileCache(i);if((b=o==null?void 0:o.tags)!=null&&b.length){let w=h.createEl("div",{cls:"file-card-tags"});o.tags.forEach(F=>{w.createEl("span",{cls:"file-card-tag",text:F.tag})})}}h.onclick=()=>v(this,null,function*(){if(h.__longPressFired){h.__longPressFired=!1;return}this.contentContainer.querySelectorAll(".file-card").forEach(F=>F.classList.remove("is-active")),h.classList.add("is-active");let w=this.app.workspace.getLeaf(!1);if(yield w.openFile(i),w.view instanceof c.MarkdownView){let F=w.view.editor,k=F.getLine(0).length;F.setCursor({line:0,ch:k}),F.focus()}}),h.oncontextmenu=o=>{o.preventDefault(),this.showFileMenu(i,{x:o.clientX,y:o.clientY})},this.addLongPress(h,o=>{this.showFileMenu(i,o)})}l&&g.createEl("div",{cls:"folder-card-truncate-notice"}).createEl("span",{text:`\u4EC5\u663E\u793A\u524D ${D} \u4E2A\u6587\u4EF6\uFF0C\u4F7F\u7528\u641C\u7D22\u8FC7\u6EE4\u6216\u8FDB\u5165\u5B50\u76EE\u5F55\u67E5\u770B\u5176\u4F59\u6587\u4EF6`,attr:{style:"color: var(--text-muted); font-size: 12px;"}}),this.contentContainer.empty(),this.contentContainer.appendChild(u)})}},I=class extends c.Plugin{constructor(){super(...arguments);this.lastFolderClickTime=0}onload(){return v(this,null,function*(){this.registerView(E,t=>new O(t)),this.addRibbonIcon("layout-list","\u6253\u5F00\u6587\u4EF6\u5361\u7247",()=>this.activateView());let e=()=>{let t=this.app.workspace.getLeavesOfType(E)[0];t&&t.view.currentFolder&&t.view.renderCards()};this.registerEvent(this.app.vault.on("create",()=>{y.clear(),e()})),this.registerEvent(this.app.vault.on("delete",()=>{y.clear(),e()})),this.registerEvent(this.app.vault.on("rename",()=>{y.clear(),e()}));let a=t=>v(this,null,function*(){let r=t.closest(".nav-folder-title");if(!r)return;let l=r.getAttribute("data-path");if(!l)return;let d=this.app.vault.getAbstractFileByPath(l);if(!(d instanceof c.TFolder))return;let s=Date.now();s-this.lastFolderClickTime<500||(this.lastFolderClickTime=s,yield this.activateView(!1),this.updateCardView(d),document.querySelectorAll(".is-plugin-active-folder").forEach(n=>{n.classList.remove("is-plugin-active-folder")}),r.classList.add("is-plugin-active-folder"))});this.registerDomEvent(document,"click",t=>{a(t.target)}),this.registerDomEvent(document,"touchend",t=>{a(t.target)})})}activateView(e=!0){return v(this,null,function*(){let{workspace:a}=this.app,t=a.getLeavesOfType(E)[0],r=!t;if(!t){if(c.Platform.isMobile)t=a.getLeaf("tab");else{let l=a.getLeavesOfType("file-explorer")[0];l?t=a.createLeafBySplit(l,"vertical"):t=a.getLeaf("split","vertical")}yield t.setViewState({type:E,active:!0})}(r||e)&&(c.Platform.isMobile?a.setActiveLeaf(t,{focus:!0}):a.revealLeaf(t)),e&&setTimeout(()=>v(this,null,function*(){let l=t.view;l.sortOrder="time",l.sortDirection="desc";let d=this.app.vault.getRoot();yield l.renderFolder(d),window.dispatchEvent(new Event("resize"))}),100)})}updateCardView(e){let a=this.app.workspace.getLeavesOfType(E)[0];a&&(c.Platform.isMobile&&this.app.workspace.setActiveLeaf(a,{focus:!0}),a.view.renderFolder(e))}};
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
+
+// main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => FolderCardPlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian = require("obsidian");
+var VIEW_TYPE_CARD = "folder-card-view";
+var folderFileCache = /* @__PURE__ */ new Map();
+var PREVIEW_LIMIT = 20;
+var MAX_CARDS = 500;
+var OBSIDIAN_EDITABLE_EXTENSIONS = /* @__PURE__ */ new Set(["md", "canvas", "txt", "base"]);
+var nodeFs = null;
+var nodePath = null;
+try {
+  if (!import_obsidian.Platform.isMobile) {
+    nodeFs = require("fs");
+    nodePath = require("path");
+  }
+} catch (e) {
+}
+function isSymlinkEntry(f) {
+  return f && f.__isSymlink === true;
+}
+__name(isSymlinkEntry, "isSymlinkEntry");
+function isObsidianEditable(file) {
+  return OBSIDIAN_EDITABLE_EXTENSIONS.has(file.extension.toLowerCase());
+}
+__name(isObsidianEditable, "isObsidianEditable");
+var FolderSuggestModal = class extends import_obsidian.FuzzySuggestModal {
+  constructor(app, onChoose) {
+    super(app);
+    this.onChoose = onChoose;
+  }
+  getItems() {
+    const folders = [];
+    this.app.vault.getAllLoadedFiles().forEach((f) => {
+      if (f instanceof import_obsidian.TFolder) {
+        folders.push(f);
+      }
+    });
+    return folders;
+  }
+  getItemText(item) {
+    return item.path === "/" ? "\u4ED3\u5E93\u6839\u76EE\u5F55" : item.path;
+  }
+  onChooseItem(item, _evt) {
+    this.onChoose(item);
+  }
+};
+__name(FolderSuggestModal, "FolderSuggestModal");
+var FolderCardView = class extends import_obsidian.ItemView {
+  constructor(leaf) {
+    super(leaf);
+    this.currentFolder = null;
+    this.sortOrder = "time";
+    this.sortDirection = "desc";
+    this.searchQuery = "";
+    this.isSearchOpen = false;
+    this.searchDebounceTimer = null;
+    this.renderGeneration = 0;
+  }
+  getViewType() {
+    return VIEW_TYPE_CARD;
+  }
+  getDisplayText() {
+    return "\u6587\u4EF6\u5361\u7247";
+  }
+  getIcon() {
+    return "layout-list";
+  }
+  onOpen() {
+    return __async(this, null, function* () {
+      const container = this.containerEl.children[1];
+      container.empty();
+      container.addClass("folder-card-view-container");
+      this.headerContainer = container.createEl("div", { cls: "folder-card-header" });
+      this.contentContainer = container.createEl("div", { cls: "folder-card-content-area" });
+      this.renderEmptyState();
+      this.contentContainer.addEventListener("contextmenu", (event) => {
+        const target = event.target;
+        if (target.closest(".file-card"))
+          return;
+        if (this.currentFolder) {
+          this.showFolderMenu({ x: event.clientX, y: event.clientY });
+        }
+      });
+      this.addLongPress(this.contentContainer, (pos) => {
+        this.showFolderMenu(pos);
+      });
+      const rootFolder = this.app.vault.getRoot();
+      yield this.renderFolder(rootFolder);
+    });
+  }
+  renderEmptyState() {
+    this.headerContainer.empty();
+    this.contentContainer.empty();
+    this.contentContainer.createEl("p", {
+      text: "\u6B63\u5728\u52A0\u8F7D...",
+      attr: { style: "text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 13px;" }
+    });
+  }
+  showFileMenu(file, pos) {
+    const menu = new import_obsidian.Menu();
+    menu.addItem(
+      (item) => item.setTitle("\u5728\u65B0\u6807\u7B7E\u9875\u4E2D\u6253\u5F00").setIcon("file-plus").onClick(() => this.app.workspace.getLeaf("tab").openFile(file))
+    );
+    menu.addSeparator();
+    menu.addItem(
+      (item) => item.setTitle("\u79FB\u81F3\u5176\u4ED6\u76EE\u5F55").setIcon("folder-input").onClick(() => {
+        new FolderSuggestModal(this.app, (folder) => __async(this, null, function* () {
+          yield this.app.fileManager.renameFile(file, `${folder.path}/${file.name}`);
+        })).open();
+      })
+    );
+    menu.addItem(
+      (item) => item.setTitle("\u590D\u5236\u6587\u4EF6").setIcon("copy").onClick(() => __async(this, null, function* () {
+        const newPath = file.path.replace(/(\.[^.]+)$/, " (\u526F\u672C)$1");
+        yield this.app.vault.copy(file, newPath);
+      }))
+    );
+    menu.addSeparator();
+    menu.addItem(
+      (item) => item.setTitle("\u590D\u5236\u8DEF\u5F84").setIcon("link").onClick(() => {
+        const fullPath = this.app.vault.adapter.getFullPath(file.path);
+        navigator.clipboard.writeText(fullPath);
+      })
+    );
+    menu.addItem(
+      (item) => item.setTitle("\u5728\u7CFB\u7EDF\u4E2D\u663E\u793A").setIcon("folder").onClick(() => {
+        var _a, _b;
+        try {
+          const electron = (_a = window.require) == null ? void 0 : _a.call(window, "electron");
+          const fullPath = this.app.vault.adapter.getFullPath(file.path);
+          (_b = electron == null ? void 0 : electron.shell) == null ? void 0 : _b.showItemInFolder(fullPath);
+        } catch (e) {
+          new import_obsidian.Notice("\u4EC5\u684C\u9762\u7AEF\u652F\u6301\u6B64\u529F\u80FD");
+        }
+      })
+    );
+    menu.addSeparator();
+    menu.addItem(
+      (item) => item.setTitle("\u5220\u9664").setIcon("trash").onClick(() => this.app.fileManager.trashFile(file))
+    );
+    menu.showAtPosition(pos);
+  }
+  showFolderMenu(pos) {
+    if (!this.currentFolder)
+      return;
+    const menu = new import_obsidian.Menu();
+    this.app.workspace.trigger("file-menu", menu, this.currentFolder, "file-explorer");
+    menu.showAtPosition(pos);
+  }
+  addLongPress(el, callback, duration = 500) {
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    const threshold = 10;
+    el.addEventListener("touchstart", (e) => {
+      const target = e.target;
+      if (target.closest(".file-card-more-btn"))
+        return;
+      if (e.touches.length !== 1)
+        return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      el.__longPressFired = false;
+      timer = window.setTimeout(() => {
+        el.__longPressFired = true;
+        callback({ x: startX, y: startY });
+        timer = null;
+      }, duration);
+    }, { passive: true });
+    el.addEventListener("touchmove", (e) => {
+      if (timer === null)
+        return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (Math.abs(dx) > threshold || Math.abs(dy) > threshold) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }, { passive: true });
+    el.addEventListener("touchend", () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
+    el.addEventListener("touchcancel", () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    });
+  }
+  renderHeader() {
+    this.headerContainer.empty();
+    if (!this.currentFolder)
+      return;
+    const rootBtn = this.headerContainer.createEl("button", { cls: "card-icon-btn card-root-btn" });
+    (0, import_obsidian.setIcon)(rootBtn, "home");
+    rootBtn.title = "\u8FD4\u56DE\u6839\u76EE\u5F55";
+    if (this.currentFolder.path === "/") {
+      rootBtn.classList.add("is-disabled");
+    }
+    rootBtn.onclick = () => __async(this, null, function* () {
+      var _a;
+      if (((_a = this.currentFolder) == null ? void 0 : _a.path) === "/")
+        return;
+      const rootFolder = this.app.vault.getRoot();
+      yield this.renderFolder(rootFolder);
+    });
+    const sortBtn = this.headerContainer.createEl("button", { cls: "card-icon-btn" });
+    (0, import_obsidian.setIcon)(sortBtn, "arrow-up-down");
+    sortBtn.title = "\u6392\u5E8F\u65B9\u5F0F";
+    const locateBtn = this.headerContainer.createEl("button", { cls: "card-icon-btn" });
+    (0, import_obsidian.setIcon)(locateBtn, "crosshair");
+    locateBtn.title = "\u5168\u5C40\u5B9A\u4F4D\u5F53\u524D\u6587\u4EF6";
+    const searchBtn = this.headerContainer.createEl("button", {
+      cls: `card-icon-btn ${this.isSearchOpen ? "is-active" : ""}`
+    });
+    (0, import_obsidian.setIcon)(searchBtn, "search");
+    searchBtn.title = "\u641C\u7D22\u8FC7\u6EE4";
+    const searchContainer = this.headerContainer.createEl("div", {
+      cls: `folder-card-search-container ${this.isSearchOpen ? "is-active" : ""}`
+    });
+    const searchInput = searchContainer.createEl("input", {
+      type: "text",
+      cls: "folder-card-search-input",
+      placeholder: "\u8FC7\u6EE4\u8BCD..."
+    });
+    searchInput.value = this.searchQuery;
+    sortBtn.onclick = (event) => {
+      const menu = new import_obsidian.Menu();
+      menu.addItem((item) => {
+        item.setTitle("\u540D\u79F0 (A \u5230 Z)").setIcon("arrow-down-a-z").setChecked(this.sortOrder === "name" && this.sortDirection === "asc").onClick(() => this.setSort("name", "asc"));
+      });
+      menu.addItem((item) => {
+        item.setTitle("\u540D\u79F0 (Z \u5230 A)").setIcon("arrow-up-z-a").setChecked(this.sortOrder === "name" && this.sortDirection === "desc").onClick(() => this.setSort("name", "desc"));
+      });
+      menu.addSeparator();
+      menu.addItem((item) => {
+        item.setTitle("\u6700\u8FD1\u4FEE\u6539\u4F18\u5148").setIcon("clock").setChecked(this.sortOrder === "time" && this.sortDirection === "desc").onClick(() => this.setSort("time", "desc"));
+      });
+      menu.addItem((item) => {
+        item.setTitle("\u6700\u65E9\u4FEE\u6539\u4F18\u5148").setIcon("history").setChecked(this.sortOrder === "time" && this.sortDirection === "asc").onClick(() => this.setSort("time", "asc"));
+      });
+      menu.showAtMouseEvent(event);
+    };
+    locateBtn.onclick = () => __async(this, null, function* () {
+      var _a;
+      const activeFile = this.app.workspace.getActiveFile();
+      if (!activeFile) {
+        new import_obsidian.Notice("\u5F53\u524D\u6CA1\u6709\u6253\u5F00\u7684\u7B14\u8BB0");
+        return;
+      }
+      if (this.searchQuery !== "") {
+        this.searchQuery = "";
+        this.isSearchOpen = false;
+        this.renderHeader();
+      }
+      if (!this.currentFolder || this.currentFolder.path !== ((_a = activeFile.parent) == null ? void 0 : _a.path)) {
+        yield this.renderFolder(activeFile.parent);
+      }
+      this.app.commands.executeCommandById("file-explorer:reveal-active-file");
+      setTimeout(() => {
+        var _a2;
+        document.querySelectorAll(".is-plugin-active-folder").forEach((el) => {
+          el.classList.remove("is-plugin-active-folder");
+        });
+        const targetFolderEl = document.querySelector(`.nav-folder-title[data-path="${(_a2 = activeFile.parent) == null ? void 0 : _a2.path}"]`);
+        if (targetFolderEl) {
+          targetFolderEl.classList.add("is-plugin-active-folder");
+          targetFolderEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        const card = this.contentContainer.querySelector(`.file-card[data-path="${activeFile.path}"]`);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          const allCards = this.contentContainer.querySelectorAll(".file-card");
+          allCards.forEach((c) => c.classList.remove("is-active"));
+          card.classList.add("is-active");
+          card.animate([
+            { transform: "scale(0.97)", backgroundColor: "var(--interactive-accent)" },
+            { transform: "scale(1)", backgroundColor: "var(--background-modifier-active-hover)" }
+          ], { duration: 350, easing: "ease-out" });
+        }
+      }, 150);
+    });
+    searchBtn.onclick = () => {
+      this.isSearchOpen = !this.isSearchOpen;
+      this.renderHeader();
+      if (this.isSearchOpen) {
+        setTimeout(() => {
+          const input = this.headerContainer.querySelector(".folder-card-search-input");
+          if (input)
+            input.focus();
+        }, 50);
+      } else {
+        this.searchQuery = "";
+        this.renderCards();
+      }
+    };
+    searchInput.addEventListener("input", (e) => {
+      this.searchQuery = e.target.value;
+      if (this.searchDebounceTimer) {
+        clearTimeout(this.searchDebounceTimer);
+      }
+      this.searchDebounceTimer = window.setTimeout(() => {
+        this.renderCards();
+      }, 250);
+    });
+    if (import_obsidian.Platform.isMobile) {
+      const folderMenuBtn = this.headerContainer.createEl("button", {
+        cls: "card-icon-btn card-folder-menu-btn"
+      });
+      (0, import_obsidian.setIcon)(folderMenuBtn, "menu");
+      folderMenuBtn.title = "\u6587\u4EF6\u5939\u64CD\u4F5C";
+      folderMenuBtn.onclick = (e) => {
+        if (this.currentFolder) {
+          this.showFolderMenu({ x: e.clientX, y: e.clientY });
+        }
+      };
+    }
+  }
+  setSort(order, direction) {
+    this.sortOrder = order;
+    this.sortDirection = direction;
+    this.renderCards();
+  }
+  renderFolder(folder) {
+    return __async(this, null, function* () {
+      this.currentFolder = folder;
+      this.renderHeader();
+      yield this.renderCards();
+    });
+  }
+  renderCards() {
+    return __async(this, null, function* () {
+      var _a;
+      if (!this.currentFolder)
+        return;
+      const generation = ++this.renderGeneration;
+      let loadingTimer = window.setTimeout(() => {
+        loadingTimer = null;
+        this.contentContainer.empty();
+        this.contentContainer.createEl("div", { cls: "folder-card-loading" }).createEl("span", { text: "\u52A0\u8F7D\u4E2D..." });
+      }, 100);
+      const cacheKey = this.currentFolder.path;
+      let files;
+      if (this.searchQuery.trim() === "" && folderFileCache.has(cacheKey)) {
+        files = [...folderFileCache.get(cacheKey)];
+      } else {
+        const allVaultFiles = this.app.vault.getFiles();
+        if (this.currentFolder.path === "/") {
+          files = allVaultFiles.filter((f) => !f.path.includes("/"));
+        } else {
+          const folderPathWithSlash = this.currentFolder.path + "/";
+          files = allVaultFiles.filter((f) => f.path.startsWith(folderPathWithSlash) || f.parent === this.currentFolder);
+        }
+        if (this.searchQuery.trim() === "") {
+          folderFileCache.set(cacheKey, [...files]);
+        }
+      }
+      if (nodeFs && nodePath && this.searchQuery.trim() === "") {
+        try {
+          const adapter = this.app.vault.adapter;
+          if (adapter.getFullPath) {
+            const folderFullPath = adapter.getFullPath(this.currentFolder.path);
+            const dirEntries = nodeFs.readdirSync(folderFullPath, { withFileTypes: true });
+            const vaultFileNames = new Set(files.map((f) => f.name));
+            for (const entry of dirEntries) {
+              if (entry.isSymbolicLink()) {
+                const linkFullPath = nodePath.join(folderFullPath, entry.name);
+                const realPath = nodeFs.realpathSync(linkFullPath);
+                const ext = nodePath.extname(entry.name).toLowerCase().slice(1);
+                if (ext && nodeFs.statSync(realPath).isFile()) {
+                  const realStat = nodeFs.statSync(realPath);
+                  const symEntry = {
+                    name: entry.name,
+                    basename: nodePath.basename(entry.name, nodePath.extname(entry.name)),
+                    extension: ext,
+                    path: this.currentFolder.path === "/" ? entry.name : `${this.currentFolder.path}/${entry.name}`,
+                    parent: this.currentFolder,
+                    stat: { mtime: realStat.mtimeMs, ctime: realStat.ctimeMs, size: realStat.size },
+                    __isSymlink: true,
+                    __linkTarget: realPath
+                  };
+                  if (!vaultFileNames.has(entry.name)) {
+                    files.push(symEntry);
+                  } else {
+                    const idx = files.findIndex((f) => f.name === entry.name);
+                    if (idx !== -1)
+                      files[idx] = symEntry;
+                  }
+                }
+              }
+            }
+          }
+        } catch (_e) {
+        }
+      }
+      if (this.searchQuery.trim() !== "") {
+        const query = this.searchQuery.toLowerCase();
+        files = files.filter((f) => f.basename.toLowerCase().includes(query));
+      }
+      files.sort((a, b) => {
+        var _a2, _b, _c, _d;
+        const isADirect = a.parent === this.currentFolder;
+        const isBDirect = b.parent === this.currentFolder;
+        if (isADirect && !isBDirect)
+          return -1;
+        if (!isADirect && isBDirect)
+          return 1;
+        if (((_a2 = a.parent) == null ? void 0 : _a2.path) !== ((_b = b.parent) == null ? void 0 : _b.path)) {
+          return (((_c = a.parent) == null ? void 0 : _c.path) || "").localeCompare(((_d = b.parent) == null ? void 0 : _d.path) || "");
+        }
+        if (this.sortOrder === "name") {
+          const res = a.basename.localeCompare(b.basename);
+          return this.sortDirection === "asc" ? res : -res;
+        } else {
+          return this.sortDirection === "asc" ? a.stat.mtime - b.stat.mtime : b.stat.mtime - a.stat.mtime;
+        }
+      });
+      let truncated = false;
+      if (files.length > MAX_CARDS) {
+        files = files.slice(0, MAX_CARDS);
+        truncated = true;
+      }
+      const filesToPreview = files.filter((f) => isObsidianEditable(f)).slice(0, PREVIEW_LIMIT);
+      const previewContents = yield Promise.all(
+        filesToPreview.map((f) => {
+          if (isSymlinkEntry(f)) {
+            return Promise.resolve((nodeFs == null ? void 0 : nodeFs.readFileSync(f.__linkTarget, "utf-8")) || "");
+          }
+          return this.app.vault.cachedRead(f).catch(() => "");
+        })
+      );
+      const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
+      if (this.renderGeneration !== generation)
+        return;
+      if (loadingTimer !== null)
+        clearTimeout(loadingTimer);
+      const fragment = document.createDocumentFragment();
+      const cardList = document.createElement("div");
+      cardList.className = "folder-card-list";
+      fragment.appendChild(cardList);
+      const activeFile = this.app.workspace.getActiveFile();
+      for (const file of files) {
+        const editable = isObsidianEditable(file);
+        const card = cardList.createEl("div", {
+          cls: `file-card ${editable ? "" : "file-card--non-editable"}`
+        });
+        card.setAttribute("data-path", file.path);
+        if (activeFile && activeFile.path === file.path) {
+          card.classList.add("is-active");
+        }
+        if (file.parent && file.parent !== this.currentFolder) {
+          let relPath = file.parent.path;
+          if (this.currentFolder.path !== "/") {
+            relPath = relPath.substring(this.currentFolder.path.length + 1);
+          }
+          card.createEl("div", { cls: "file-card-path", text: relPath });
+        }
+        const titleRow = card.createEl("div", { cls: "file-card-title-row" });
+        const titleEl = titleRow.createEl("div", { cls: "file-card-title", text: file.basename });
+        if (!editable) {
+          const extBadge = titleRow.createEl("span", { cls: "file-card-ext-badge", text: file.extension.toUpperCase() });
+        }
+        if (isSymlinkEntry(file)) {
+          card.classList.add("file-card--symlink");
+          titleRow.createEl("span", { cls: "file-card-symlink-badge", text: "\u{1F517}" });
+        }
+        const moreBtn = titleRow.createEl("button", { cls: "file-card-more-btn" });
+        (0, import_obsidian.setIcon)(moreBtn, "more-vertical");
+        moreBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          this.showFileMenu(file, { x: e.clientX, y: e.clientY });
+        });
+        const cachedContent = previewMap.get(file.path);
+        if (cachedContent !== void 0) {
+          let previewText = cachedContent.split("\n").slice(0, 5).join(" ").trim();
+          const tagRegex = /#[\w\u4e00-\u9fa5]+/g;
+          const tags = previewText.match(tagRegex);
+          if (tags && tags.length > 0) {
+            const tagsContainer = card.createEl("div", { cls: "file-card-tags" });
+            tags.forEach((tag) => {
+              tagsContainer.createEl("span", { cls: "file-card-tag", text: tag });
+            });
+            previewText = previewText.replace(tagRegex, "").trim();
+          }
+          if (previewText) {
+            const cleanText = previewText.replace(/[#*]/g, "").trim();
+            card.createEl("div", { cls: "file-card-preview", text: cleanText || "..." });
+          }
+        } else {
+          const fileCache = this.app.metadataCache.getFileCache(file);
+          if ((_a = fileCache == null ? void 0 : fileCache.tags) == null ? void 0 : _a.length) {
+            const tagsContainer = card.createEl("div", { cls: "file-card-tags" });
+            fileCache.tags.forEach((tagCache) => {
+              tagsContainer.createEl("span", { cls: "file-card-tag", text: tagCache.tag });
+            });
+          }
+        }
+        card.onclick = () => __async(this, null, function* () {
+          if (card.__longPressFired) {
+            card.__longPressFired = false;
+            return;
+          }
+          const allCards = this.contentContainer.querySelectorAll(".file-card");
+          allCards.forEach((c) => c.classList.remove("is-active"));
+          card.classList.add("is-active");
+          if (isSymlinkEntry(file)) {
+            try {
+              const cacheDir = "_symlink_cache";
+              if (!this.app.vault.getAbstractFileByPath(cacheDir)) {
+                yield this.app.vault.createFolder(cacheDir);
+              }
+              const content = (nodeFs == null ? void 0 : nodeFs.readFileSync(file.__linkTarget, "utf-8")) || "";
+              const cachePath = `${cacheDir}/${file.name}`;
+              const oldFile = this.app.vault.getAbstractFileByPath(cachePath);
+              if (oldFile instanceof import_obsidian.TFile) {
+                yield this.app.vault.delete(oldFile);
+              }
+              yield this.app.vault.create(cachePath, content);
+              const tempFile = this.app.vault.getAbstractFileByPath(cachePath);
+              if (tempFile instanceof import_obsidian.TFile) {
+                const leaf = this.app.workspace.getLeaf(false);
+                yield leaf.openFile(tempFile);
+                if (leaf.view instanceof import_obsidian.MarkdownView) {
+                  const editor = leaf.view.editor;
+                  const firstLineLength = editor.getLine(0).length;
+                  editor.setCursor({ line: 0, ch: firstLineLength });
+                  editor.focus();
+                }
+              }
+            } catch (_e) {
+              new import_obsidian.Notice(`\u65E0\u6CD5\u6253\u5F00\u8F6F\u94FE\u6587\u4EF6: ${file.name}`);
+            }
+          } else {
+            const leaf = this.app.workspace.getLeaf(false);
+            yield leaf.openFile(file);
+            if (leaf.view instanceof import_obsidian.MarkdownView) {
+              const editor = leaf.view.editor;
+              const firstLineLength = editor.getLine(0).length;
+              editor.setCursor({ line: 0, ch: firstLineLength });
+              editor.focus();
+            }
+          }
+        });
+        card.oncontextmenu = (event) => {
+          event.preventDefault();
+          this.showFileMenu(file, { x: event.clientX, y: event.clientY });
+        };
+        this.addLongPress(card, (pos) => {
+          this.showFileMenu(file, pos);
+        });
+      }
+      if (truncated) {
+        const truncateNotice = cardList.createEl("div", { cls: "folder-card-truncate-notice" });
+        truncateNotice.createEl("span", {
+          text: `\u4EC5\u663E\u793A\u524D ${MAX_CARDS} \u4E2A\u6587\u4EF6\uFF0C\u4F7F\u7528\u641C\u7D22\u8FC7\u6EE4\u6216\u8FDB\u5165\u5B50\u76EE\u5F55\u67E5\u770B\u5176\u4F59\u6587\u4EF6`,
+          attr: { style: "color: var(--text-muted); font-size: 12px;" }
+        });
+      }
+      this.contentContainer.empty();
+      this.contentContainer.appendChild(fragment);
+    });
+  }
+};
+__name(FolderCardView, "FolderCardView");
+var FolderCardPlugin = class extends import_obsidian.Plugin {
+  constructor() {
+    super(...arguments);
+    this.lastFolderClickTime = 0;
+  }
+  onload() {
+    return __async(this, null, function* () {
+      this.registerView(VIEW_TYPE_CARD, (leaf) => new FolderCardView(leaf));
+      this.addRibbonIcon("layout-list", "\u6253\u5F00\u6587\u4EF6\u5361\u7247", () => this.activateView());
+      const refreshCurrentFolder = /* @__PURE__ */ __name(() => {
+        const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
+        if (leaf && leaf.view.currentFolder) {
+          leaf.view.renderCards();
+        }
+      }, "refreshCurrentFolder");
+      const isCacheDir = /* @__PURE__ */ __name((path) => path.startsWith("_symlink_cache/") || path === "_symlink_cache", "isCacheDir");
+      this.registerEvent(this.app.vault.on("create", (file) => {
+        if (isCacheDir(file.path))
+          return;
+        folderFileCache.clear();
+        refreshCurrentFolder();
+      }));
+      this.registerEvent(this.app.vault.on("delete", (file) => {
+        if (isCacheDir(file.path))
+          return;
+        folderFileCache.clear();
+        refreshCurrentFolder();
+      }));
+      this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+        if (isCacheDir(file.path) || isCacheDir(oldPath))
+          return;
+        folderFileCache.clear();
+        refreshCurrentFolder();
+      }));
+      const handleFolderClick = /* @__PURE__ */ __name((target) => __async(this, null, function* () {
+        const folderTitleEl = target.closest(".nav-folder-title");
+        if (!folderTitleEl)
+          return;
+        const path = folderTitleEl.getAttribute("data-path");
+        if (!path)
+          return;
+        const abstractFile = this.app.vault.getAbstractFileByPath(path);
+        if (!(abstractFile instanceof import_obsidian.TFolder))
+          return;
+        const now = Date.now();
+        if (now - this.lastFolderClickTime < 500)
+          return;
+        this.lastFolderClickTime = now;
+        yield this.activateView(false);
+        this.updateCardView(abstractFile);
+        document.querySelectorAll(".is-plugin-active-folder").forEach((el) => {
+          el.classList.remove("is-plugin-active-folder");
+        });
+        folderTitleEl.classList.add("is-plugin-active-folder");
+      }), "handleFolderClick");
+      this.registerDomEvent(document, "click", (evt) => {
+        handleFolderClick(evt.target);
+      });
+      this.registerDomEvent(document, "touchend", (evt) => {
+        handleFolderClick(evt.target);
+      });
+    });
+  }
+  activateView(autoFocusRecent = true) {
+    return __async(this, null, function* () {
+      const { workspace } = this.app;
+      let leaf = workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
+      const isNewLeaf = !leaf;
+      if (!leaf) {
+        if (import_obsidian.Platform.isMobile) {
+          leaf = workspace.getLeaf("tab");
+        } else {
+          const fileExplorerLeaf = workspace.getLeavesOfType("file-explorer")[0];
+          if (fileExplorerLeaf) {
+            leaf = workspace.createLeafBySplit(fileExplorerLeaf, "vertical");
+          } else {
+            leaf = workspace.getLeaf("split", "vertical");
+          }
+        }
+        yield leaf.setViewState({ type: VIEW_TYPE_CARD, active: true });
+      }
+      if (isNewLeaf || autoFocusRecent) {
+        if (import_obsidian.Platform.isMobile) {
+          workspace.setActiveLeaf(leaf, { focus: true });
+        } else {
+          workspace.revealLeaf(leaf);
+        }
+      }
+      if (autoFocusRecent) {
+        setTimeout(() => __async(this, null, function* () {
+          const view = leaf.view;
+          view.sortOrder = "time";
+          view.sortDirection = "desc";
+          const rootFolder = this.app.vault.getRoot();
+          yield view.renderFolder(rootFolder);
+          window.dispatchEvent(new Event("resize"));
+        }), 100);
+      }
+    });
+  }
+  updateCardView(folder) {
+    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
+    if (leaf) {
+      if (import_obsidian.Platform.isMobile) {
+        this.app.workspace.setActiveLeaf(leaf, { focus: true });
+      }
+      leaf.view.renderFolder(folder);
+    }
+  }
+};
+__name(FolderCardPlugin, "FolderCardPlugin");

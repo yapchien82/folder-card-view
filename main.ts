@@ -12,7 +12,33 @@ const MAX_CARDS = 500;
 // Obsidian 可直接编辑的文本文件扩展名
 const OBSIDIAN_EDITABLE_EXTENSIONS = new Set(['md', 'canvas', 'txt', 'base']);
 
-function isObsidianEditable(file: TFile): boolean {
+// 软链检测（仅桌面端可用）
+let nodeFs: any = null;
+let nodePath: any = null;
+try {
+    if (!Platform.isMobile) {
+        nodeFs = require('fs');
+        nodePath = require('path');
+    }
+} catch {}
+
+// 软链文件虚拟条目（补全 TFile 所需的最小接口）
+interface SymlinkEntry {
+    name: string;
+    basename: string;
+    extension: string;
+    path: string;
+    parent: TFolder | null;
+    stat: { mtime: number; ctime: number; size: number };
+    __isSymlink: true;
+    __linkTarget: string;
+}
+
+function isSymlinkEntry(f: any): f is SymlinkEntry {
+    return f && f.__isSymlink === true;
+}
+
+function isObsidianEditable(file: TFile | SymlinkEntry): boolean {
     return OBSIDIAN_EDITABLE_EXTENSIONS.has(file.extension.toLowerCase());
 }
 
@@ -426,6 +452,50 @@ class FolderCardView extends ItemView {
             }
         }
 
+        // 软链扫描（仅桌面端）：检测文件夹中的符号链接，补充到文件列表
+        if (nodeFs && nodePath && this.searchQuery.trim() === '') {
+            try {
+                const adapter = this.app.vault.adapter as any;
+                if (adapter.getFullPath) {
+                    const folderFullPath = adapter.getFullPath(this.currentFolder.path);
+                    const dirEntries = nodeFs.readdirSync(folderFullPath, { withFileTypes: true });
+                    const vaultFileNames = new Set(files.map(f => f.name));
+                    for (const entry of dirEntries) {
+                        if (entry.isSymbolicLink()) {
+                            const linkFullPath = nodePath.join(folderFullPath, entry.name);
+                            const realPath = nodeFs.realpathSync(linkFullPath);
+                            const ext = nodePath.extname(entry.name).toLowerCase().slice(1);
+                            if (ext && nodeFs.statSync(realPath).isFile()) {
+                                const realStat = nodeFs.statSync(realPath);
+                                const symEntry = {
+                                    name: entry.name,
+                                    basename: nodePath.basename(entry.name, nodePath.extname(entry.name)),
+                                    extension: ext,
+                                    path: this.currentFolder.path === '/'
+                                        ? entry.name
+                                        : `${this.currentFolder.path}/${entry.name}`,
+                                    parent: this.currentFolder,
+                                    stat: { mtime: realStat.mtimeMs, ctime: realStat.ctimeMs, size: realStat.size },
+                                    __isSymlink: true,
+                                    __linkTarget: realPath,
+                                };
+                                if (!vaultFileNames.has(entry.name)) {
+                                    // 新发现的软链，追加到文件列表
+                                    (files as any[]).push(symEntry);
+                                } else {
+                                    // 软链名称与缓存中的文件重名（缓存未刷新），替换为软链条目
+                                    const idx = files.findIndex(f => f.name === entry.name);
+                                    if (idx !== -1) (files as any[])[idx] = symEntry;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_e) {
+                // 软链扫描失败不影响主流程
+            }
+        }
+
         if (this.searchQuery.trim() !== '') {
             const query = this.searchQuery.toLowerCase();
             files = files.filter(f => f.basename.toLowerCase().includes(query));
@@ -460,7 +530,12 @@ class FolderCardView extends ItemView {
         // 方案 A：仅对可编辑文件异步读取前 PREVIEW_LIMIT 张的内容，图片等文件直接跳过
         const filesToPreview = files.filter(f => isObsidianEditable(f)).slice(0, PREVIEW_LIMIT);
         const previewContents = await Promise.all(
-            filesToPreview.map(f => this.app.vault.cachedRead(f).catch(() => ''))
+            filesToPreview.map(f => {
+                if (isSymlinkEntry(f)) {
+                    return Promise.resolve(nodeFs?.readFileSync(f.__linkTarget, 'utf-8') || '');
+                }
+                return this.app.vault.cachedRead(f).catch(() => '');
+            })
         );
         const previewMap = new Map(filesToPreview.map((f, i) => [f.path, previewContents[i]]));
 
@@ -498,6 +573,11 @@ class FolderCardView extends ItemView {
             // 非可编辑文件显示扩展名标签
             if (!editable) {
                 const extBadge = titleRow.createEl("span", { cls: "file-card-ext-badge", text: file.extension.toUpperCase() });
+            }
+            // 软链文件显示链接标记
+            if (isSymlinkEntry(file)) {
+                card.classList.add("file-card--symlink");
+                titleRow.createEl("span", { cls: "file-card-symlink-badge", text: "🔗" });
             }
             const moreBtn = titleRow.createEl("button", { cls: "file-card-more-btn" });
             setIcon(moreBtn, "more-vertical");
@@ -546,14 +626,44 @@ class FolderCardView extends ItemView {
                 allCards.forEach(c => c.classList.remove('is-active'));
                 card.classList.add("is-active");
 
-                const leaf = this.app.workspace.getLeaf(false);
-                await leaf.openFile(file);
+                if (isSymlinkEntry(file)) {
+                    // 软链文件：读取内容后写入缓存目录再打开
+                    try {
+                        const cacheDir = '_symlink_cache';
+                        if (!this.app.vault.getAbstractFileByPath(cacheDir)) {
+                            await this.app.vault.createFolder(cacheDir);
+                        }
+                        const content = nodeFs?.readFileSync(file.__linkTarget, 'utf-8') || '';
+                        const cachePath = `${cacheDir}/${file.name}`;
+                        const oldFile = this.app.vault.getAbstractFileByPath(cachePath);
+                        if (oldFile instanceof TFile) {
+                            await this.app.vault.delete(oldFile);
+                        }
+                        await this.app.vault.create(cachePath, content);
+                        const tempFile = this.app.vault.getAbstractFileByPath(cachePath);
+                        if (tempFile instanceof TFile) {
+                            const leaf = this.app.workspace.getLeaf(false);
+                            await leaf.openFile(tempFile);
+                            if (leaf.view instanceof MarkdownView) {
+                                const editor = leaf.view.editor;
+                                const firstLineLength = editor.getLine(0).length;
+                                editor.setCursor({ line: 0, ch: firstLineLength });
+                                editor.focus();
+                            }
+                        }
+                    } catch (_e) {
+                        new Notice(`无法打开软链文件: ${file.name}`);
+                    }
+                } else {
+                    const leaf = this.app.workspace.getLeaf(false);
+                    await leaf.openFile(file);
 
-                if (leaf.view instanceof MarkdownView) {
-                    const editor = leaf.view.editor;
-                    const firstLineLength = editor.getLine(0).length;
-                    editor.setCursor({ line: 0, ch: firstLineLength });
-                    editor.focus();
+                    if (leaf.view instanceof MarkdownView) {
+                        const editor = leaf.view.editor;
+                        const firstLineLength = editor.getLine(0).length;
+                        editor.setCursor({ line: 0, ch: firstLineLength });
+                        editor.focus();
+                    }
                 }
             };
 
@@ -598,16 +708,20 @@ export default class FolderCardPlugin extends Plugin {
             }
         };
 
-        // 文件变更时清除缓存并刷新视图
-        this.registerEvent(this.app.vault.on('create', () => {
+        // 文件变更时清除缓存并刷新视图（排除 _symlink_cache 避免软链打开时的重绘冲突）
+        const isCacheDir = (path: string) => path.startsWith('_symlink_cache/') || path === '_symlink_cache';
+        this.registerEvent(this.app.vault.on('create', (file) => {
+            if (isCacheDir(file.path)) return;
             folderFileCache.clear();
             refreshCurrentFolder();
         }));
-        this.registerEvent(this.app.vault.on('delete', () => {
+        this.registerEvent(this.app.vault.on('delete', (file) => {
+            if (isCacheDir(file.path)) return;
             folderFileCache.clear();
             refreshCurrentFolder();
         }));
-        this.registerEvent(this.app.vault.on('rename', () => {
+        this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
+            if (isCacheDir(file.path) || isCacheDir(oldPath)) return;
             folderFileCache.clear();
             refreshCurrentFolder();
         }));
