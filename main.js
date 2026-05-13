@@ -712,9 +712,7 @@ var FolderCardPlugin = class extends import_obsidian.Plugin {
   updateCardView(folder) {
     const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_CARD)[0];
     if (leaf) {
-      if (import_obsidian.Platform.isMobile) {
-        this.app.workspace.setActiveLeaf(leaf, { focus: true });
-      }
+      this.app.workspace.setActiveLeaf(leaf, { focus: true });
       leaf.view.renderFolder(folder);
     }
   }
